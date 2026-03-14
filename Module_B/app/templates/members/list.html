@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Members — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">Members</h2>
+      </div>
+      {% if current_user.role == "Admin" %}
+      <div class="col-auto ms-auto">
+        <a href="/ui/members/new" class="btn btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
+               stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Member
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    <div class="card">
+      <div class="card-header">
+        <div class="input-group">
+          <input id="search" type="text" class="form-control" placeholder="Search members..."/>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-vcenter table-hover card-table" id="members-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Email</th>
+              <th>Gender</th>
+              <th>Join Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for m in members %}
+            <tr>
+              <td class="text-muted">{{ m.MemberID }}</td>
+              <td>
+                <div class="d-flex align-items-center">
+                  <span class="avatar avatar-sm me-2" style="background-color:#206bc4;color:white;font-weight:bold;">
+                    {{ m.Name[0] }}
+                  </span>
+                  <a href="/ui/members/{{ m.MemberID }}">{{ m.Name }}</a>
+                </div>
+              </td>
+              <td>
+                <span class="badge bg-{% if m.Role == 'Admin' %}red{% elif m.Role == 'Coach' %}orange{% else %}blue{% endif %}-lt">
+                  {{ m.Role }}
+                </span>
+              </td>
+              <td class="text-muted">{{ m.Email }}</td>
+              <td class="text-muted">{{ m.Gender }}</td>
+              <td class="text-muted">{{ m.JoinDate }}</td>
+              <td class="text-end">
+                <a href="/ui/members/{{ m.MemberID }}" class="btn btn-sm btn-outline-primary">View</a>
+                {% if current_user.role == "Admin" %}
+                <form action="/ui/members/{{ m.MemberID }}/delete" method="post" class="d-inline"
+                      onsubmit="return confirm('Delete {{ m.Name }}?')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#members-table tbody tr').forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

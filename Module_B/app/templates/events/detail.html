@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ event.EventName }} — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto"><a href="/ui/events" class="btn btn-outline-secondary btn-sm">Back</a></div>
+      <div class="col"><h2 class="page-title">{{ event.EventName }}</h2></div>
+    </div>
+  </div>
+</div>
+<div class="page-body">
+  <div class="container-xl">
+    <div class="row row-cards">
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title">Event Details</h3>
+            <dl class="row">
+              <dt class="col-5 text-muted">Date</dt>        <dd class="col-7">{{ event.EventDate }}</dd>
+              <dt class="col-5 text-muted">Time</dt>        <dd class="col-7">{{ event.StartTime }} – {{ event.EndTime }}</dd>
+              <dt class="col-5 text-muted">Sport</dt>       <dd class="col-7">{{ event.SportName }}</dd>
+              <dt class="col-5 text-muted">Venue</dt>       <dd class="col-7">{{ event.VenueName }}</dd>
+              <dt class="col-5 text-muted">Round</dt>       <dd class="col-7">{{ event.Round or '—' }}</dd>
+              <dt class="col-5 text-muted">Tournament</dt>  <dd class="col-7">{{ event.TournamentName or '—' }}</dd>
+              <dt class="col-5 text-muted">Status</dt>
+              <dd class="col-7">
+                <span class="badge bg-{% if event.Status == 'Ongoing' %}green{% elif event.Status == 'Scheduled' %}blue{% elif event.Status == 'Cancelled' %}red{% else %}secondary{% endif %}-lt">
+                  {{ event.Status }}
+                </span>
+              </dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Participating Teams</h3></div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr><th>Team</th><th>Score</th><th>Rank</th><th>Result</th><th>Remarks</th></tr>
+              </thead>
+              <tbody>
+              {% for p in participation %}
+                <tr>
+                  <td><a href="/ui/teams/{{ p.TeamID }}">{{ p.TeamName }}</a></td>
+                  <td>{{ p.Score or '—' }}</td>
+                  <td>{{ p.EventRank or '—' }}</td>
+                  <td>
+                    {% if p.Result %}
+                    <span class="badge bg-{% if p.Result == 'Win' %}green{% elif p.Result == 'Loss' %}red{% elif p.Result == 'Draw' %}yellow{% else %}secondary{% endif %}-lt">
+                      {{ p.Result }}
+                    </span>
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="text-muted">{{ p.Remarks or '—' }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="5" class="text-muted text-center">No teams registered</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

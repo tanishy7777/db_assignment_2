@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Teams — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col"><h2 class="page-title">Teams</h2></div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-vcenter table-hover card-table">
+          <thead>
+            <tr><th>ID</th><th>Team Name</th><th>Sport</th><th>Coach</th><th>Formed</th><th></th></tr>
+          </thead>
+          <tbody>
+          {% for t in teams %}
+            <tr>
+              <td class="text-muted">{{ t.TeamID }}</td>
+              <td><a href="/ui/teams/{{ t.TeamID }}">{{ t.TeamName }}</a></td>
+              <td>{{ t.SportName }}</td>
+              <td class="text-muted">{{ t.CoachName or '—' }}</td>
+              <td class="text-muted">{{ t.FormedDate }}</td>
+              <td class="text-end">
+                <a href="/ui/teams/{{ t.TeamID }}" class="btn btn-sm btn-outline-primary">View</a>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

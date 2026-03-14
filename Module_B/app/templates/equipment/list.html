@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Equipment — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col"><h2 class="page-title">Equipment Inventory</h2></div>
+    </div>
+  </div>
+</div>
+<div class="page-body">
+  <div class="container-xl">
+    <div class="row row-cards">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Inventory</h3></div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr><th>ID</th><th>Item</th><th>Sport</th><th>Qty</th><th>Condition</th></tr>
+              </thead>
+              <tbody>
+              {% for e in equipment %}
+                <tr>
+                  <td class="text-muted">{{ e.EquipmentID }}</td>
+                  <td>{{ e.EquipmentName }}</td>
+                  <td class="text-muted">{{ e.SportName or 'General' }}</td>
+                  <td>{{ e.TotalQuantity }}</td>
+                  <td>
+                    <span class="badge bg-{% if e.EquipmentCondition == 'New' %}green{% elif e.EquipmentCondition == 'Good' %}blue{% elif e.EquipmentCondition == 'Fair' %}yellow{% else %}red{% endif %}-lt">
+                      {{ e.EquipmentCondition }}
+                    </span>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Active Issues (Unreturned)</h3>
+            <div class="card-options text-muted small">{{ issues | length }} item(s) outstanding</div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr><th>Item</th><th>Member</th><th>Issued</th><th>Qty</th></tr>
+              </thead>
+              <tbody>
+              {% for i in issues %}
+                <tr>
+                  <td>{{ i.EquipmentName }}</td>
+                  <td><a href="/ui/members/{{ i.MemberID }}">{{ i.MemberName }}</a></td>
+                  <td class="text-muted">{{ i.IssueDate }}</td>
+                  <td>{{ i.Quantity }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="4" class="text-muted text-center">No outstanding issues</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

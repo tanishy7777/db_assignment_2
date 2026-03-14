@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ member.Name }} — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <a href="/ui/members" class="btn btn-outline-secondary btn-sm">Back</a>
+      </div>
+      <div class="col">
+        <h2 class="page-title">Member Portfolio</h2>
+      </div>
+      {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
+      <div class="col-auto">
+        <a href="/ui/members/{{ member.MemberID }}/edit" class="btn btn-primary btn-sm">Edit</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    <div class="row row-cards">
+
+      <!-- Profile card -->
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-body text-center">
+            <span class="avatar avatar-xl mb-3"
+                  style="background-color:#206bc4;color:white;font-size:2rem;font-weight:bold;">
+              {{ member.Name[0] }}
+            </span>
+            <h3 class="mb-1">{{ member.Name }}</h3>
+            <div class="text-muted mb-2">{{ member.Email }}</div>
+            <span class="badge bg-{% if member.Role == 'Admin' %}red{% elif member.Role == 'Coach' %}orange{% else %}blue{% endif %} mb-3">
+              {{ member.Role }}
+            </span>
+            <div class="row g-2 mt-2">
+              <div class="col-6">
+                <div class="text-muted small">Age</div>
+                <div class="fw-bold">{{ member.Age }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-muted small">Gender</div>
+                <div class="fw-bold">{{ member.Gender }}</div>
+              </div>
+              <div class="col-12">
+                <div class="text-muted small">Contact</div>
+                <div class="fw-bold">{{ member.ContactNumber }}</div>
+              </div>
+              <div class="col-12">
+                <div class="text-muted small">Joined</div>
+                <div class="fw-bold">{{ member.JoinDate }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Teams card -->
+        <div class="card mt-3">
+          <div class="card-header"><h3 class="card-title">Teams</h3></div>
+          <div class="list-group list-group-flush">
+            {% for t in teams %}
+            <div class="list-group-item">
+              <div class="row align-items-center">
+                <div class="col">
+                  <a href="/ui/teams/{{ t.TeamID }}">{{ t.TeamName }}</a>
+                  <div class="text-muted small">{{ t.SportName }} &mdash; {{ t.Position or 'N/A' }}</div>
+                </div>
+                {% if t.IsCaptain %}
+                <div class="col-auto">
+                  <span class="badge bg-yellow-lt">Captain</span>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% else %}
+            <div class="list-group-item text-muted">No teams</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div class="col-md-8">
+
+        <!-- Performance logs -->
+        <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title">Performance History</h3>
+            <div class="card-options text-muted small">{{ performance | length }} records</div>
+          </div>
+          {% if performance %}
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr><th>Date</th><th>Sport</th><th>Metric</th><th>Value</th></tr>
+              </thead>
+              <tbody>
+              {% for log in performance %}
+                <tr>
+                  <td class="text-muted">{{ log.RecordDate }}</td>
+                  <td>{{ log.SportName }}</td>
+                  <td>{{ log.MetricName }}</td>
+                  <td><strong>{{ log.MetricValue }}</strong></td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="card-body text-muted">
+            {% if current_user.role == "Player" and current_user.member_id != member.MemberID %}
+              Access restricted.
+            {% else %}
+              No performance records.
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Medical records -->
+        {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Medical Records</h3>
+            <div class="card-options"><span class="badge bg-red-lt">Confidential</span></div>
+          </div>
+          {% if medical %}
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr><th>Condition</th><th>Diagnosed</th><th>Recovery</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+              {% for rec in medical %}
+                <tr>
+                  <td>{{ rec.MedicalCondition }}</td>
+                  <td class="text-muted">{{ rec.DiagnosisDate }}</td>
+                  <td class="text-muted">{{ rec.RecoveryDate or '—' }}</td>
+                  <td>
+                    <span class="badge bg-{% if rec.Status == 'Active' %}red{% elif rec.Status == 'Recovered' %}green{% else %}yellow{% endif %}-lt">
+                      {{ rec.Status }}
+                    </span>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="card-body text-muted">No medical records.</div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
