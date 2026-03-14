@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from app.auth.dependencies import get_current_user, _hash_token
@@ -107,8 +108,9 @@ def logout(
         "LOGOUT", "sessions", str(current_user["user_id"]), "SUCCESS", None, ip,
     )
 
-    response.delete_cookie("access_token")
-    return {"success": True, "message": "Logged out"}
+    resp = RedirectResponse(url="/ui/login", status_code=303)
+    resp.delete_cookie("access_token")
+    return resp
 
 
 @router.get("/isAuth")

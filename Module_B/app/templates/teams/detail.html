@@ -6,6 +6,19 @@
     <div class="row g-2 align-items-center">
       <div class="col-auto"><a href="/ui/teams" class="btn btn-outline-secondary btn-sm">Back</a></div>
       <div class="col"><h2 class="page-title">{{ team.TeamName }}</h2></div>
+      {% if current_user.role in ("Admin", "Coach") %}
+      <div class="col-auto">
+        <a href="/ui/teams/{{ team.TeamID }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
+      </div>
+      {% endif %}
+      {% if current_user.role == "Admin" %}
+      <div class="col-auto">
+        <form action="/ui/teams/{{ team.TeamID }}/delete" method="post"
+              onsubmit="return confirm('Delete this team and all its members?')">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

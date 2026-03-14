@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}New Tournament — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto"><a href="/ui/tournaments" class="btn btn-outline-secondary btn-sm">Back</a></div>
+      <div class="col"><h2 class="page-title">New Tournament</h2></div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    <div class="card">
+      <div class="card-body">
+        <form method="post" action="/ui/tournaments/new">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Tournament Name</label>
+              <input type="text" name="tournament_name" class="form-control" required/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select" required>
+                <option value="Upcoming">Upcoming</option>
+                <option value="Ongoing">Ongoing</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Start Date</label>
+              <input type="date" name="start_date" class="form-control" required/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">End Date</label>
+              <input type="date" name="end_date" class="form-control" required/>
+            </div>
+            <div class="col-md-9">
+              <label class="form-label">Description <span class="text-muted">(optional)</span></label>
+              <input type="text" name="description" class="form-control"/>
+            </div>
+          </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Create Tournament</button>
+            <a href="/ui/tournaments" class="btn ms-2">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

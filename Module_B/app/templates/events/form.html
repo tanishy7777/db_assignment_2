@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}New Event — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto"><a href="/ui/events" class="btn btn-outline-secondary btn-sm">Back</a></div>
+      <div class="col"><h2 class="page-title">New Event</h2></div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    <div class="card">
+      <div class="card-body">
+        <form method="post" action="/ui/events/new">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Event Name</label>
+              <input type="text" name="event_name" class="form-control" required/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Sport</label>
+              <select name="sport_id" class="form-select" required>
+                {% for s in sports %}
+                <option value="{{ s.SportID }}">{{ s.SportName }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Venue</label>
+              <select name="venue_id" class="form-select" required>
+                {% for v in venues %}
+                <option value="{{ v.VenueID }}">{{ v.VenueName }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Tournament <span class="text-muted">(optional)</span></label>
+              <select name="tournament_id" class="form-select">
+                <option value="">— Standalone —</option>
+                {% for t in tournaments %}
+                <option value="{{ t.TournamentID }}">{{ t.TournamentName }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Event Date</label>
+              <input type="date" name="event_date" class="form-control" required/>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Start Time</label>
+              <input type="time" name="start_time" class="form-control" required/>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">End Time</label>
+              <input type="time" name="end_time" class="form-control" required/>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select" required>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Ongoing">Ongoing</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Round <span class="text-muted">(optional)</span></label>
+              <input type="text" name="round_name" class="form-control" placeholder="e.g. Quarter-Final"/>
+            </div>
+          </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Create Event</button>
+            <a href="/ui/events" class="btn ms-2">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
