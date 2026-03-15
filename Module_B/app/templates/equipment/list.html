@@ -18,7 +18,7 @@
           <div class="table-responsive">
             <table class="table table-vcenter card-table">
               <thead>
-                <tr><th>ID</th><th>Item</th><th>Sport</th><th>Qty</th><th>Condition</th></tr>
+                <tr><th>ID</th><th>Item</th><th>Sport</th><th>Total</th><th>Available</th><th>Condition</th></tr>
               </thead>
               <tbody>
               {% for e in equipment %}
@@ -26,7 +26,12 @@
                   <td class="text-muted">{{ e.EquipmentID }}</td>
                   <td>{{ e.EquipmentName }}</td>
                   <td class="text-muted">{{ e.SportName or 'General' }}</td>
-                  <td>{{ e.TotalQuantity }}</td>
+                  <td class="text-muted">{{ e.TotalQuantity }}</td>
+                  <td>
+                    <span class="{% if e.AvailableQuantity == 0 %}text-danger fw-bold{% elif e.AvailableQuantity <= 2 %}text-warning fw-bold{% else %}text-success{% endif %}">
+                      {{ e.AvailableQuantity }}
+                    </span>
+                  </td>
                   <td>
                     <span class="badge bg-{% if e.EquipmentCondition == 'New' %}green{% elif e.EquipmentCondition == 'Good' %}blue{% elif e.EquipmentCondition == 'Fair' %}yellow{% else %}red{% endif %}-lt">
                       {{ e.EquipmentCondition }}

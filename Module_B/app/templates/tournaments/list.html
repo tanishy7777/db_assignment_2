@@ -30,7 +30,7 @@
           <tbody>
           {% for t in tournaments %}
             <tr>
-              <td>{{ t.TournamentName }}</td>
+              <td><a href="/ui/tournaments/{{ t.TournamentID }}">{{ t.TournamentName }}</a></td>
               <td class="text-muted">{{ t.StartDate }}</td>
               <td class="text-muted">{{ t.EndDate }}</td>
               <td>

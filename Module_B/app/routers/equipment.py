@@ -91,6 +91,33 @@ def issue_equipment(
     auth_db=Depends(get_auth_db),
 ):
     ip = request.client.host if request.client else "unknown"
+
+    if body.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Quantity must be a positive number.")
+
+    # Check available stock
+    track_db.execute(
+        """
+        SELECT e.TotalQuantity,
+               COALESCE(SUM(ei.Quantity), 0) AS issued
+        FROM Equipment e
+        LEFT JOIN EquipmentIssue ei
+               ON e.EquipmentID = ei.EquipmentID AND ei.ReturnDate IS NULL
+        WHERE e.EquipmentID = %s
+        GROUP BY e.TotalQuantity
+        """,
+        (body.equipment_id,),
+    )
+    stock = track_db.fetchone()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Equipment not found.")
+    available = stock["TotalQuantity"] - stock["issued"]
+    if body.quantity > available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot issue {body.quantity} item(s). Only {available} available.",
+        )
+
     try:
         track_db.execute(
             "INSERT INTO EquipmentIssue (IssueID, EquipmentID, MemberID, IssueDate, ReturnDate, Quantity) "

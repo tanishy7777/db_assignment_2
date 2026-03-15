@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from typing import Optional
 
 from app.auth.dependencies import get_current_user, require_admin_or_coach
 from app.database import get_auth_db, get_track_db
@@ -15,6 +16,13 @@ class PerfLogCreate(BaseModel):
     metric_name:  str
     metric_value: float
     record_date:  str
+
+
+class PerfLogUpdate(BaseModel):
+    sport_id:     Optional[int]   = None
+    metric_name:  Optional[str]   = None
+    metric_value: Optional[float] = None
+    record_date:  Optional[str]   = None
 
 
 @router.get("")
@@ -99,3 +107,53 @@ def create_performance_log(
                     "INSERT", "PerformanceLog", str(body.log_id), "SUCCESS",
                     {"member_id": body.member_id, "metric": body.metric_name}, ip)
     return {"success": True, "message": "Performance log created", "data": {"log_id": body.log_id}}
+
+
+@router.put("/{log_id}")
+def update_performance_log(
+    log_id: int,
+    body: PerfLogUpdate,
+    request: Request,
+    current_user: dict = Depends(require_admin_or_coach),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT LogID, MemberID FROM PerformanceLog WHERE LogID=%s", (log_id,))
+    row = track_db.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Log not found")
+
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    col_map = {
+        "sport_id": "SportID", "metric_name": "MetricName",
+        "metric_value": "MetricValue", "record_date": "RecordDate",
+    }
+    set_clause = ", ".join(f"{col_map[k]} = %s" for k in fields)
+    track_db.execute(f"UPDATE PerformanceLog SET {set_clause} WHERE LogID=%s",
+                     list(fields.values()) + [log_id])
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "UPDATE", "PerformanceLog", str(log_id), "SUCCESS", fields, ip)
+    return {"success": True, "message": "Performance log updated"}
+
+
+@router.delete("/{log_id}")
+def delete_performance_log(
+    log_id: int,
+    request: Request,
+    current_user: dict = Depends(require_admin_or_coach),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT LogID FROM PerformanceLog WHERE LogID=%s", (log_id,))
+    if not track_db.fetchone():
+        raise HTTPException(status_code=404, detail="Log not found")
+
+    track_db.execute("DELETE FROM PerformanceLog WHERE LogID=%s", (log_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "PerformanceLog", str(log_id), "SUCCESS", None, ip)
+    return {"success": True, "message": f"Log {log_id} deleted"}

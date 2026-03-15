@@ -22,6 +22,18 @@ class EventCreate(BaseModel):
     round:         Optional[str] = None
 
 
+class EventUpdate(BaseModel):
+    event_name:    Optional[str] = None
+    event_date:    Optional[str] = None
+    start_time:    Optional[str] = None
+    end_time:      Optional[str] = None
+    venue_id:      Optional[int] = None
+    sport_id:      Optional[int] = None
+    status:        Optional[str] = None
+    tournament_id: Optional[int] = None
+    round:         Optional[str] = None
+
+
 @router.get("")
 def list_events(
     request: Request,
@@ -138,3 +150,53 @@ def create_event(
                     "INSERT", "Event", str(body.event_id), "SUCCESS",
                     {"name": body.event_name}, ip)
     return {"success": True, "message": "Event created", "data": {"event_id": body.event_id}}
+
+
+@router.put("/{event_id}")
+def update_event(
+    event_id: int,
+    body: EventUpdate,
+    request: Request,
+    current_user: dict = Depends(require_admin),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT EventID FROM Event WHERE EventID=%s", (event_id,))
+    if not track_db.fetchone():
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    col_map = {
+        "event_name": "EventName", "event_date": "EventDate", "start_time": "StartTime",
+        "end_time": "EndTime", "venue_id": "VenueID", "sport_id": "SportID",
+        "status": "Status", "tournament_id": "TournamentID", "round": "Round",
+    }
+    set_clause = ", ".join(f"{col_map[k]} = %s" for k in fields)
+    track_db.execute(f"UPDATE Event SET {set_clause} WHERE EventID=%s",
+                     list(fields.values()) + [event_id])
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "UPDATE", "Event", str(event_id), "SUCCESS", fields, ip)
+    return {"success": True, "message": "Event updated"}
+
+
+@router.delete("/{event_id}")
+def delete_event(
+    event_id: int,
+    request: Request,
+    current_user: dict = Depends(require_admin),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT EventID FROM Event WHERE EventID=%s", (event_id,))
+    if not track_db.fetchone():
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    track_db.execute("DELETE FROM Event WHERE EventID=%s", (event_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "Event", str(event_id), "SUCCESS", None, ip)
+    return {"success": True, "message": f"Event {event_id} deleted"}

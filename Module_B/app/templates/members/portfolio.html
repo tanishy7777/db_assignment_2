@@ -125,7 +125,9 @@
           <div class="table-responsive">
             <table class="table table-vcenter card-table">
               <thead>
-                <tr><th>Date</th><th>Sport</th><th>Metric</th><th>Value</th></tr>
+                <tr><th>Date</th><th>Sport</th><th>Metric</th><th>Value</th>
+                  {% if current_user.role in ("Admin", "Coach") %}<th></th>{% endif %}
+                </tr>
               </thead>
               <tbody>
               {% for log in performance %}
@@ -134,6 +136,18 @@
                   <td>{{ log.SportName }}</td>
                   <td>{{ log.MetricName }}</td>
                   <td><strong>{{ log.MetricValue }}</strong></td>
+                  {% if current_user.role in ("Admin", "Coach") %}
+                  <td class="text-end">
+                    <div class="d-flex gap-1 justify-content-end">
+                      <a href="/ui/performance-logs/{{ log.LogID }}/edit" class="btn btn-xs btn-outline-primary">Edit</a>
+                      <form method="post" action="/ui/performance-logs/{{ log.LogID }}/delete"
+                            onsubmit="return confirm('Delete this log entry?')">
+                        <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
+                        <button type="submit" class="btn btn-xs btn-outline-danger">Del</button>
+                      </form>
+                    </div>
+                  </td>
+                  {% endif %}
                 </tr>
               {% endfor %}
               </tbody>
@@ -191,7 +205,9 @@
           <div class="table-responsive">
             <table class="table table-vcenter card-table">
               <thead>
-                <tr><th>Condition</th><th>Diagnosed</th><th>Recovery</th><th>Status</th></tr>
+                <tr><th>Condition</th><th>Diagnosed</th><th>Recovery</th><th>Status</th>
+                  {% if current_user.role == "Admin" %}<th></th>{% endif %}
+                </tr>
               </thead>
               <tbody>
               {% for rec in medical %}
@@ -204,6 +220,18 @@
                       {{ rec.Status }}
                     </span>
                   </td>
+                  {% if current_user.role == "Admin" %}
+                  <td class="text-end">
+                    <div class="d-flex gap-1 justify-content-end">
+                      <a href="/ui/medical-records/{{ rec.RecordID }}/edit" class="btn btn-xs btn-outline-primary">Edit</a>
+                      <form method="post" action="/ui/medical-records/{{ rec.RecordID }}/delete"
+                            onsubmit="return confirm('Delete this medical record?')">
+                        <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
+                        <button type="submit" class="btn btn-xs btn-outline-danger">Del</button>
+                      </form>
+                    </div>
+                  </td>
+                  {% endif %}
                 </tr>
               {% endfor %}
               </tbody>

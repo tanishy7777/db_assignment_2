@@ -11,6 +11,7 @@ from app.routers.equipment import router as equipment_router
 from app.routers.performance import router as performance_router
 from app.routers.medical import router as medical_router
 from app.routers.admin import router as admin_router
+from app.routers.registration import router as registration_router
 from app.ui.routes import router as ui_router
 
 app = FastAPI(title="Olympia Track", version="1.0")
@@ -23,8 +24,9 @@ app.include_router(events_router,      prefix="/api/events",            tags=["e
 app.include_router(equipment_router,   prefix="/api/equipment",         tags=["equipment"])
 app.include_router(performance_router, prefix="/api/performance-logs",  tags=["performance"])
 app.include_router(medical_router,     prefix="/api/medical-records",   tags=["medical"])
-app.include_router(admin_router,       prefix="/admin",                 tags=["admin"])
-app.include_router(ui_router,          prefix="/ui",                    tags=["ui"])
+app.include_router(admin_router,        prefix="/admin",                tags=["admin"])
+app.include_router(registration_router, prefix="/api/registrations",    tags=["registrations"])
+app.include_router(ui_router,           prefix="/ui",                   tags=["ui"])
 
 
 @app.get("/")

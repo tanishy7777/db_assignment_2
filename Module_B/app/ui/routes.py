@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
+from urllib.parse import quote_plus
 import os
 
 from app.auth.dependencies import get_current_user, _hash_token
@@ -19,8 +20,22 @@ templates = Jinja2Templates(directory=os.path.abspath(_tmpl_dir))
 
 
 def _ctx(request: Request, current_user: dict, **extra):
-    """Build a base template context dict."""
-    return {"request": request, "current_user": current_user, **extra}
+    """Build a base template context dict. Reads ?success= and ?error= for flash toasts."""
+    flash = None
+    success_msg = request.query_params.get("success")
+    error_msg = request.query_params.get("error")
+    if success_msg:
+        flash = {"type": "success", "message": success_msg}
+    elif error_msg:
+        flash = {"type": "danger", "message": error_msg}
+    return {"request": request, "current_user": current_user, "flash": flash, **extra}
+
+
+def _flash_redirect(url: str, error: str = None, success: str = None) -> RedirectResponse:
+    """Redirect with a flash message encoded as a query param."""
+    msg = error or success
+    key = "error" if error else "success"
+    return RedirectResponse(f"{url}?{key}={quote_plus(msg)}", status_code=303)
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
@@ -513,6 +528,7 @@ def tournaments_list(
 
 
 @router.get("/tournaments/new", response_class=HTMLResponse)
+
 def tournament_new_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -553,6 +569,180 @@ def tournament_create(
         return templates.TemplateResponse("tournaments/form.html",
                                           _ctx(request, current_user, active="tournaments", error=str(e)))
     return RedirectResponse("/ui/tournaments", status_code=303)
+
+
+@router.get("/tournaments/{tournament_id}", response_class=HTMLResponse)
+def tournament_detail(
+    tournament_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+):
+    track_db.execute("SELECT * FROM Tournament WHERE TournamentID=%s", (tournament_id,))
+    tournament = track_db.fetchone()
+    if not tournament:
+        return RedirectResponse("/ui/tournaments", status_code=303)
+    tournament["StartDate"] = str(tournament["StartDate"])
+    tournament["EndDate"] = str(tournament["EndDate"])
+
+    track_db.execute(
+        "SELECT e.*, s.SportName, v.VenueName FROM Event e "
+        "JOIN Sport s ON e.SportID=s.SportID JOIN Venue v ON e.VenueID=v.VenueID "
+        "WHERE e.TournamentID=%s ORDER BY e.EventDate", (tournament_id,))
+    events = track_db.fetchall()
+    for ev in events:
+        ev["EventDate"] = str(ev["EventDate"])
+        ev["StartTime"] = str(ev["StartTime"])
+        ev["EndTime"]   = str(ev["EndTime"])
+
+    track_db.execute(
+        "SELECT tr.RegID, t.TeamID, t.TeamName, s.SportName FROM TournamentRegistration tr "
+        "JOIN Team t ON tr.TeamID=t.TeamID JOIN Sport s ON t.SportID=s.SportID "
+        "WHERE tr.TournamentID=%s ORDER BY t.TeamName", (tournament_id,))
+    registered_teams = track_db.fetchall()
+
+    registered_ids = {r["TeamID"] for r in registered_teams}
+    track_db.execute("SELECT TeamID, TeamName FROM Team ORDER BY TeamName")
+    all_teams = [t for t in track_db.fetchall() if t["TeamID"] not in registered_ids]
+
+    return templates.TemplateResponse("tournaments/detail.html",
+                                      _ctx(request, current_user, active="tournaments",
+                                           tournament=tournament, events=events,
+                                           registered_teams=registered_teams, all_teams=all_teams))
+
+
+@router.get("/tournaments/{tournament_id}/edit", response_class=HTMLResponse)
+def tournament_edit_form(
+    tournament_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
+    from app.database import get_track_db as _get_track_db
+    # Use a direct import to avoid dependency injection in GET
+    return RedirectResponse(f"/ui/tournaments/{tournament_id}/edit-form", status_code=303)
+
+
+@router.get("/tournaments/{tournament_id}/edit-form", response_class=HTMLResponse)
+def tournament_edit_page(
+    tournament_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
+    track_db.execute("SELECT * FROM Tournament WHERE TournamentID=%s", (tournament_id,))
+    tournament = track_db.fetchone()
+    if not tournament:
+        return RedirectResponse("/ui/tournaments", status_code=303)
+    tournament["StartDate"] = str(tournament["StartDate"])
+    tournament["EndDate"] = str(tournament["EndDate"])
+    return templates.TemplateResponse("tournaments/form.html",
+                                      _ctx(request, current_user, active="tournaments",
+                                           tournament=tournament, error=None))
+
+
+@router.post("/tournaments/{tournament_id}/edit")
+def tournament_edit_submit(
+    tournament_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    tournament_name: str = Form(...),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    description: Optional[str] = Form(None),
+    status: str = Form(...),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    try:
+        track_db.execute(
+            "UPDATE Tournament SET TournamentName=%s, StartDate=%s, EndDate=%s, "
+            "Description=%s, Status=%s WHERE TournamentID=%s",
+            (tournament_name, start_date, end_date, description or None, status, tournament_id),
+        )
+        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                        "UPDATE", "Tournament", str(tournament_id), "SUCCESS",
+                        {"name": tournament_name}, ip)
+    except Exception as e:
+        return _flash_redirect(f"/ui/tournaments/{tournament_id}/edit-form", error=str(e))
+    return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
+
+
+@router.post("/tournaments/{tournament_id}/delete")
+def tournament_delete(
+    tournament_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/tournaments", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("DELETE FROM Tournament WHERE TournamentID=%s", (tournament_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "Tournament", str(tournament_id), "SUCCESS", None, ip)
+    return _flash_redirect("/ui/tournaments", success="Tournament deleted.")
+
+
+@router.post("/tournaments/{tournament_id}/register")
+def tournament_register_team(
+    tournament_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    team_id: int = Form(...),
+):
+    if current_user["role"] not in ("Admin", "Coach"):
+        return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    try:
+        track_db.execute(
+            "SELECT RegID FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
+            (tournament_id, team_id))
+        if track_db.fetchone():
+            return _flash_redirect(f"/ui/tournaments/{tournament_id}",
+                                   error="Team is already registered.")
+        track_db.execute(
+            "SELECT COALESCE(MAX(RegID), 0) + 1 AS nid FROM TournamentRegistration")
+        next_id = track_db.fetchone()["nid"]
+        track_db.execute(
+            "INSERT INTO TournamentRegistration (RegID, TournamentID, TeamID) VALUES (%s,%s,%s)",
+            (next_id, tournament_id, team_id))
+        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                        "INSERT", "TournamentRegistration", str(next_id), "SUCCESS",
+                        {"tournament_id": tournament_id, "team_id": team_id}, ip)
+    except Exception as e:
+        return _flash_redirect(f"/ui/tournaments/{tournament_id}", error=str(e))
+    return _flash_redirect(f"/ui/tournaments/{tournament_id}", success="Team registered.")
+
+
+@router.post("/tournaments/{tournament_id}/unregister/{team_id}")
+def tournament_unregister_team(
+    tournament_id: int,
+    team_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute(
+        "DELETE FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
+        (tournament_id, team_id))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "TournamentRegistration", None, "SUCCESS",
+                    {"tournament_id": tournament_id, "team_id": team_id}, ip)
+    return _flash_redirect(f"/ui/tournaments/{tournament_id}", success="Team unregistered.")
 
 
 # ── Events ─────────────────────────────────────────────────────────────────────
@@ -640,6 +830,148 @@ def event_create(
     return RedirectResponse(f"/ui/events/{next_id}", status_code=303)
 
 
+@router.get("/events/{event_id}/edit", response_class=HTMLResponse)
+def event_edit_form(
+    event_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+    track_db.execute("SELECT * FROM Event WHERE EventID=%s", (event_id,))
+    event = track_db.fetchone()
+    if not event:
+        return RedirectResponse("/ui/events", status_code=303)
+    for k in ("EventDate", "StartTime", "EndTime"):
+        event[k] = str(event[k])
+    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+    sports = track_db.fetchall()
+    track_db.execute("SELECT VenueID, VenueName FROM Venue ORDER BY VenueName")
+    venues = track_db.fetchall()
+    track_db.execute("SELECT TournamentID, TournamentName FROM Tournament ORDER BY TournamentName")
+    tournaments = track_db.fetchall()
+    return templates.TemplateResponse("events/form.html",
+                                      _ctx(request, current_user, active="events",
+                                           event=event, sports=sports, venues=venues,
+                                           tournaments=tournaments, error=None))
+
+
+@router.post("/events/{event_id}/edit")
+def event_edit_submit(
+    event_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    event_name: str = Form(...),
+    tournament_id: Optional[int] = Form(None),
+    event_date: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
+    venue_id: int = Form(...),
+    sport_id: int = Form(...),
+    status: str = Form(...),
+    round_name: Optional[str] = Form(None),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    try:
+        track_db.execute(
+            "UPDATE Event SET EventName=%s, TournamentID=%s, EventDate=%s, StartTime=%s, "
+            "EndTime=%s, VenueID=%s, SportID=%s, Status=%s, Round=%s WHERE EventID=%s",
+            (event_name, tournament_id, event_date, start_time, end_time,
+             venue_id, sport_id, status, round_name or None, event_id),
+        )
+        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                        "UPDATE", "Event", str(event_id), "SUCCESS", {"name": event_name}, ip)
+    except Exception as e:
+        return _flash_redirect(f"/ui/events/{event_id}/edit", error=str(e))
+    return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+
+
+@router.post("/events/{event_id}/delete")
+def event_delete(
+    event_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/events", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("DELETE FROM Event WHERE EventID=%s", (event_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "Event", str(event_id), "SUCCESS", None, ip)
+    return _flash_redirect("/ui/events", success="Event deleted.")
+
+
+@router.post("/events/{event_id}/add-team")
+def event_add_team(
+    event_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    team_id: int = Form(...),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT TournamentID FROM Event WHERE EventID=%s", (event_id,))
+    ev = track_db.fetchone()
+    if not ev:
+        return _flash_redirect("/ui/events", error="Event not found.")
+
+    if ev["TournamentID"]:
+        track_db.execute(
+            "SELECT RegID FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
+            (ev["TournamentID"], team_id))
+        if not track_db.fetchone():
+            return _flash_redirect(
+                f"/ui/events/{event_id}",
+                error="Team must be registered for the tournament before joining its events.")
+
+    track_db.execute(
+        "SELECT ParticipationID FROM Participation WHERE EventID=%s AND TeamID=%s",
+        (event_id, team_id))
+    if track_db.fetchone():
+        return _flash_redirect(f"/ui/events/{event_id}",
+                                error="Team is already participating in this event.")
+
+    track_db.execute("SELECT COALESCE(MAX(ParticipationID), 0) + 1 AS nid FROM Participation")
+    next_id = track_db.fetchone()["nid"]
+    track_db.execute(
+        "INSERT INTO Participation (ParticipationID, TeamID, EventID) VALUES (%s,%s,%s)",
+        (next_id, team_id, event_id))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "INSERT", "Participation", str(next_id), "SUCCESS",
+                    {"event_id": event_id, "team_id": team_id}, ip)
+    return _flash_redirect(f"/ui/events/{event_id}", success="Team added to event.")
+
+
+@router.post("/events/{event_id}/remove-team/{team_id}")
+def event_remove_team(
+    event_id: int,
+    team_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute(
+        "DELETE FROM Participation WHERE EventID=%s AND TeamID=%s", (event_id, team_id))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "Participation", None, "SUCCESS",
+                    {"event_id": event_id, "team_id": team_id}, ip)
+    return _flash_redirect(f"/ui/events/{event_id}", success="Team removed from event.")
+
+
 @router.get("/events/{event_id}", response_class=HTMLResponse)
 def event_detail(
     event_id: int,
@@ -661,9 +993,22 @@ def event_detail(
         "SELECT p.*, tm.TeamName FROM Participation p JOIN Team tm ON p.TeamID=tm.TeamID "
         "WHERE p.EventID=%s", (event_id,))
     participation = track_db.fetchall()
+
+    # For "add team" form: show eligible teams (registered for tournament if applicable, not yet in event)
+    participating_ids = {p["TeamID"] for p in participation}
+    if event.get("TournamentID"):
+        track_db.execute(
+            "SELECT t.TeamID, t.TeamName FROM TournamentRegistration tr "
+            "JOIN Team t ON tr.TeamID=t.TeamID WHERE tr.TournamentID=%s ORDER BY t.TeamName",
+            (event["TournamentID"],))
+    else:
+        track_db.execute("SELECT TeamID, TeamName FROM Team ORDER BY TeamName")
+    eligible_teams = [t for t in track_db.fetchall() if t["TeamID"] not in participating_ids]
+
     return templates.TemplateResponse("events/detail.html",
                                       _ctx(request, current_user, active="events",
-                                           event=event, participation=participation))
+                                           event=event, participation=participation,
+                                           eligible_teams=eligible_teams))
 
 
 # ── Equipment ──────────────────────────────────────────────────────────────────
@@ -675,8 +1020,10 @@ def equipment_list(
     track_db=Depends(get_track_db),
 ):
     track_db.execute(
-        "SELECT e.*, s.SportName FROM Equipment e LEFT JOIN Sport s ON e.SportID=s.SportID "
-        "ORDER BY e.EquipmentID"
+        "SELECT e.*, s.SportName, "
+        "e.TotalQuantity - COALESCE((SELECT SUM(ei.Quantity) FROM EquipmentIssue ei "
+        "WHERE ei.EquipmentID=e.EquipmentID AND ei.ReturnDate IS NULL), 0) AS AvailableQuantity "
+        "FROM Equipment e LEFT JOIN Sport s ON e.SportID=s.SportID ORDER BY e.EquipmentID"
     )
     equipment = track_db.fetchall()
 
@@ -711,6 +1058,21 @@ def equipment_issue(
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/equipment", status_code=303)
     ip = request.client.host if request.client else "unknown"
+    if quantity <= 0:
+        return _flash_redirect("/ui/equipment", error="Quantity must be a positive number.")
+    track_db.execute(
+        "SELECT e.TotalQuantity, COALESCE(SUM(ei.Quantity), 0) AS issued "
+        "FROM Equipment e LEFT JOIN EquipmentIssue ei "
+        "ON e.EquipmentID=ei.EquipmentID AND ei.ReturnDate IS NULL "
+        "WHERE e.EquipmentID=%s GROUP BY e.TotalQuantity",
+        (equipment_id,))
+    stock = track_db.fetchone()
+    if not stock:
+        return _flash_redirect("/ui/equipment", error="Equipment not found.")
+    available = stock["TotalQuantity"] - stock["issued"]
+    if quantity > available:
+        return _flash_redirect("/ui/equipment",
+            error=f"Cannot issue {quantity} item(s). Only {available} available.")
     track_db.execute("SELECT COALESCE(MAX(IssueID), 0) + 1 AS nid FROM EquipmentIssue")
     next_id = track_db.fetchone()["nid"]
     track_db.execute(
@@ -721,7 +1083,7 @@ def equipment_issue(
     write_audit_log(auth_db, current_user["user_id"], current_user["username"],
                     "INSERT", "EquipmentIssue", str(next_id), "SUCCESS",
                     {"equipment_id": equipment_id, "member_id": member_id}, ip)
-    return RedirectResponse("/ui/equipment", status_code=303)
+    return _flash_redirect("/ui/equipment", success="Equipment issued successfully.")
 
 
 @router.post("/equipment/issue/{issue_id}/return")
@@ -747,6 +1109,73 @@ def equipment_return(
 
 
 # ── Performance logs ───────────────────────────────────────────────────────────
+
+@router.get("/performance-logs/{log_id}/edit", response_class=HTMLResponse)
+def perf_log_edit_form(
+    log_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+):
+    if current_user["role"] not in ("Admin", "Coach"):
+        return RedirectResponse("/ui/dashboard", status_code=303)
+    track_db.execute(
+        "SELECT pl.*, s.SportName FROM PerformanceLog pl "
+        "JOIN Sport s ON pl.SportID=s.SportID WHERE pl.LogID=%s", (log_id,))
+    log = track_db.fetchone()
+    if not log:
+        return RedirectResponse("/ui/members", status_code=303)
+    log["RecordDate"] = str(log["RecordDate"])
+    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+    sports = track_db.fetchall()
+    return templates.TemplateResponse("performance/form.html",
+                                      _ctx(request, current_user, active="members",
+                                           log=log, sports=sports, error=None))
+
+
+@router.post("/performance-logs/{log_id}/edit")
+def perf_log_edit_submit(
+    log_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    member_id: int = Form(...),
+    sport_id: int = Form(...),
+    metric_name: str = Form(...),
+    metric_value: float = Form(...),
+    record_date: str = Form(...),
+):
+    if current_user["role"] not in ("Admin", "Coach"):
+        return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute(
+        "UPDATE PerformanceLog SET SportID=%s, MetricName=%s, MetricValue=%s, RecordDate=%s "
+        "WHERE LogID=%s",
+        (sport_id, metric_name, metric_value, record_date, log_id))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "UPDATE", "PerformanceLog", str(log_id), "SUCCESS",
+                    {"metric": metric_name, "value": metric_value}, ip)
+    return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+
+
+@router.post("/performance-logs/{log_id}/delete")
+def perf_log_delete(
+    log_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    member_id: int = Form(...),
+):
+    if current_user["role"] not in ("Admin", "Coach"):
+        return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("DELETE FROM PerformanceLog WHERE LogID=%s", (log_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "PerformanceLog", str(log_id), "SUCCESS", None, ip)
+    return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+
 
 @router.post("/performance-logs/new")
 def performance_log_create(
@@ -803,6 +1232,73 @@ def medical_record_create(
     write_audit_log(auth_db, current_user["user_id"], current_user["username"],
                     "INSERT", "MedicalRecord", str(next_id), "SUCCESS",
                     {"member_id": member_id, "condition": medical_condition}, ip)
+    return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+
+
+# ── Medical record edit/delete ─────────────────────────────────────────────────
+
+@router.get("/medical-records/{record_id}/edit", response_class=HTMLResponse)
+def medical_record_edit_form(
+    record_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/members", status_code=303)
+    track_db.execute("SELECT * FROM MedicalRecord WHERE RecordID=%s", (record_id,))
+    record = track_db.fetchone()
+    if not record:
+        return RedirectResponse("/ui/members", status_code=303)
+    record["DiagnosisDate"] = str(record["DiagnosisDate"])
+    if record.get("RecoveryDate"):
+        record["RecoveryDate"] = str(record["RecoveryDate"])
+    return templates.TemplateResponse("medical/form.html",
+                                      _ctx(request, current_user, active="members",
+                                           record=record, error=None))
+
+
+@router.post("/medical-records/{record_id}/edit")
+def medical_record_edit_submit(
+    record_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    member_id: int = Form(...),
+    medical_condition: str = Form(...),
+    diagnosis_date: str = Form(...),
+    recovery_date: Optional[str] = Form(None),
+    status: str = Form(...),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute(
+        "UPDATE MedicalRecord SET MedicalCondition=%s, DiagnosisDate=%s, "
+        "RecoveryDate=%s, Status=%s WHERE RecordID=%s",
+        (medical_condition, diagnosis_date, recovery_date or None, status, record_id))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "UPDATE", "MedicalRecord", str(record_id), "SUCCESS",
+                    {"condition": medical_condition}, ip)
+    return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+
+
+@router.post("/medical-records/{record_id}/delete")
+def medical_record_delete(
+    record_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    member_id: int = Form(...),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("DELETE FROM MedicalRecord WHERE RecordID=%s", (record_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "MedicalRecord", str(record_id), "SUCCESS", None, ip)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
 

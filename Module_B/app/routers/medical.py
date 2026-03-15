@@ -18,6 +18,13 @@ class MedicalCreate(BaseModel):
     recovery_date:     Optional[str] = None
 
 
+class MedicalUpdate(BaseModel):
+    medical_condition: Optional[str] = None
+    diagnosis_date:    Optional[str] = None
+    recovery_date:     Optional[str] = None
+    status:            Optional[str] = None
+
+
 @router.get("/{member_id}")
 def get_medical_records(
     member_id: int,
@@ -81,3 +88,52 @@ def create_medical_record(
                     {"member_id": body.member_id, "condition": body.medical_condition}, ip)
     return {"success": True, "message": "Medical record created",
             "data": {"record_id": body.record_id}}
+
+
+@router.put("/{record_id}")
+def update_medical_record(
+    record_id: int,
+    body: MedicalUpdate,
+    request: Request,
+    current_user: dict = Depends(require_admin),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT RecordID FROM MedicalRecord WHERE RecordID=%s", (record_id,))
+    if not track_db.fetchone():
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    col_map = {
+        "medical_condition": "MedicalCondition", "diagnosis_date": "DiagnosisDate",
+        "recovery_date": "RecoveryDate", "status": "Status",
+    }
+    set_clause = ", ".join(f"{col_map[k]} = %s" for k in fields)
+    track_db.execute(f"UPDATE MedicalRecord SET {set_clause} WHERE RecordID=%s",
+                     list(fields.values()) + [record_id])
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "UPDATE", "MedicalRecord", str(record_id), "SUCCESS", fields, ip)
+    return {"success": True, "message": "Medical record updated"}
+
+
+@router.delete("/{record_id}")
+def delete_medical_record(
+    record_id: int,
+    request: Request,
+    current_user: dict = Depends(require_admin),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT RecordID, MemberID FROM MedicalRecord WHERE RecordID=%s", (record_id,))
+    if not track_db.fetchone():
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    track_db.execute("DELETE FROM MedicalRecord WHERE RecordID=%s", (record_id,))
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "DELETE", "MedicalRecord", str(record_id), "SUCCESS", None, ip)
+    return {"success": True, "message": f"Record {record_id} deleted"}

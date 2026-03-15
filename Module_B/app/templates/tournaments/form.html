@@ -1,11 +1,17 @@
 {% extends "base.html" %}
-{% block title %}New Tournament — Olympia Track{% endblock %}
+{% block title %}{% if tournament %}Edit Tournament{% else %}New Tournament{% endif %} — Olympia Track{% endblock %}
 {% block content %}
 <div class="page-header d-print-none">
   <div class="container-xl">
     <div class="row g-2 align-items-center">
-      <div class="col-auto"><a href="/ui/tournaments" class="btn btn-outline-secondary btn-sm">Back</a></div>
-      <div class="col"><h2 class="page-title">New Tournament</h2></div>
+      <div class="col-auto">
+        {% if tournament %}
+        <a href="/ui/tournaments/{{ tournament.TournamentID }}" class="btn btn-outline-secondary btn-sm">Back</a>
+        {% else %}
+        <a href="/ui/tournaments" class="btn btn-outline-secondary btn-sm">Back</a>
+        {% endif %}
+      </div>
+      <div class="col"><h2 class="page-title">{% if tournament %}Edit Tournament{% else %}New Tournament{% endif %}</h2></div>
     </div>
   </div>
 </div>
@@ -17,36 +23,50 @@
     {% endif %}
     <div class="card">
       <div class="card-body">
+        {% if tournament %}
+        <form method="post" action="/ui/tournaments/{{ tournament.TournamentID }}/edit">
+        {% else %}
         <form method="post" action="/ui/tournaments/new">
+        {% endif %}
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Tournament Name</label>
-              <input type="text" name="tournament_name" class="form-control" required/>
+              <input type="text" name="tournament_name" class="form-control" required
+                     value="{{ tournament.TournamentName if tournament else '' }}"/>
             </div>
             <div class="col-md-3">
               <label class="form-label">Status</label>
               <select name="status" class="form-select" required>
-                <option value="Upcoming">Upcoming</option>
-                <option value="Ongoing">Ongoing</option>
-                <option value="Completed">Completed</option>
+                <option value="Upcoming" {% if tournament and tournament.Status == 'Upcoming' %}selected{% endif %}>Upcoming</option>
+                <option value="Ongoing" {% if tournament and tournament.Status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
+                <option value="Completed" {% if tournament and tournament.Status == 'Completed' %}selected{% endif %}>Completed</option>
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label">Start Date</label>
-              <input type="date" name="start_date" class="form-control" required/>
+              <input type="date" name="start_date" class="form-control" required
+                     value="{{ tournament.StartDate if tournament else '' }}"/>
             </div>
             <div class="col-md-3">
               <label class="form-label">End Date</label>
-              <input type="date" name="end_date" class="form-control" required/>
+              <input type="date" name="end_date" class="form-control" required
+                     value="{{ tournament.EndDate if tournament else '' }}"/>
             </div>
             <div class="col-md-9">
               <label class="form-label">Description <span class="text-muted">(optional)</span></label>
-              <input type="text" name="description" class="form-control"/>
+              <input type="text" name="description" class="form-control"
+                     value="{{ tournament.Description if tournament and tournament.Description else '' }}"/>
             </div>
           </div>
           <div class="mt-4">
-            <button type="submit" class="btn btn-primary">Create Tournament</button>
+            <button type="submit" class="btn btn-primary">
+              {% if tournament %}Save Changes{% else %}Create Tournament{% endif %}
+            </button>
+            {% if tournament %}
+            <a href="/ui/tournaments/{{ tournament.TournamentID }}" class="btn ms-2">Cancel</a>
+            {% else %}
             <a href="/ui/tournaments" class="btn ms-2">Cancel</a>
+            {% endif %}
           </div>
         </form>
       </div>

@@ -211,6 +211,9 @@ def create_member(
     import bcrypt
     ip = request.client.host if request.client else "unknown"
 
+    if body.age <= 0:
+        raise HTTPException(status_code=400, detail="Age must be a positive number.")
+
     # Insert into olympia_track.Member
     try:
         track_db.execute(
@@ -280,6 +283,8 @@ def update_member(
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
+    if "age" in fields and fields["age"] <= 0:
+        raise HTTPException(status_code=400, detail="Age must be a positive number.")
 
     col_map = {
         "name": "Name", "age": "Age", "email": "Email",

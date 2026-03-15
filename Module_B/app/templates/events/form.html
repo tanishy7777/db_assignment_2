@@ -1,11 +1,17 @@
 {% extends "base.html" %}
-{% block title %}New Event — Olympia Track{% endblock %}
+{% block title %}{% if event %}Edit Event{% else %}New Event{% endif %} — Olympia Track{% endblock %}
 {% block content %}
 <div class="page-header d-print-none">
   <div class="container-xl">
     <div class="row g-2 align-items-center">
-      <div class="col-auto"><a href="/ui/events" class="btn btn-outline-secondary btn-sm">Back</a></div>
-      <div class="col"><h2 class="page-title">New Event</h2></div>
+      <div class="col-auto">
+        {% if event %}
+        <a href="/ui/events/{{ event.EventID }}" class="btn btn-outline-secondary btn-sm">Back</a>
+        {% else %}
+        <a href="/ui/events" class="btn btn-outline-secondary btn-sm">Back</a>
+        {% endif %}
+      </div>
+      <div class="col"><h2 class="page-title">{% if event %}Edit Event{% else %}New Event{% endif %}</h2></div>
     </div>
   </div>
 </div>
@@ -17,17 +23,24 @@
     {% endif %}
     <div class="card">
       <div class="card-body">
+        {% if event %}
+        <form method="post" action="/ui/events/{{ event.EventID }}/edit">
+        {% else %}
         <form method="post" action="/ui/events/new">
+        {% endif %}
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Event Name</label>
-              <input type="text" name="event_name" class="form-control" required/>
+              <input type="text" name="event_name" class="form-control" required
+                     value="{{ event.EventName if event else '' }}"/>
             </div>
             <div class="col-md-3">
               <label class="form-label">Sport</label>
               <select name="sport_id" class="form-select" required>
                 {% for s in sports %}
-                <option value="{{ s.SportID }}">{{ s.SportName }}</option>
+                <option value="{{ s.SportID }}" {% if event and s.SportID == event.SportID %}selected{% endif %}>
+                  {{ s.SportName }}
+                </option>
                 {% endfor %}
               </select>
             </div>
@@ -35,7 +48,9 @@
               <label class="form-label">Venue</label>
               <select name="venue_id" class="form-select" required>
                 {% for v in venues %}
-                <option value="{{ v.VenueID }}">{{ v.VenueName }}</option>
+                <option value="{{ v.VenueID }}" {% if event and v.VenueID == event.VenueID %}selected{% endif %}>
+                  {{ v.VenueName }}
+                </option>
                 {% endfor %}
               </select>
             </div>
@@ -44,39 +59,52 @@
               <select name="tournament_id" class="form-select">
                 <option value="">— Standalone —</option>
                 {% for t in tournaments %}
-                <option value="{{ t.TournamentID }}">{{ t.TournamentName }}</option>
+                <option value="{{ t.TournamentID }}"
+                  {% if event and event.TournamentID and t.TournamentID == event.TournamentID %}selected{% endif %}>
+                  {{ t.TournamentName }}
+                </option>
                 {% endfor %}
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label">Event Date</label>
-              <input type="date" name="event_date" class="form-control" required/>
+              <input type="date" name="event_date" class="form-control" required
+                     value="{{ event.EventDate if event else '' }}"/>
             </div>
             <div class="col-md-2">
               <label class="form-label">Start Time</label>
-              <input type="time" name="start_time" class="form-control" required/>
+              <input type="time" name="start_time" class="form-control" required
+                     value="{{ event.StartTime if event else '' }}"/>
             </div>
             <div class="col-md-2">
               <label class="form-label">End Time</label>
-              <input type="time" name="end_time" class="form-control" required/>
+              <input type="time" name="end_time" class="form-control" required
+                     value="{{ event.EndTime if event else '' }}"/>
             </div>
             <div class="col-md-2">
               <label class="form-label">Status</label>
               <select name="status" class="form-select" required>
-                <option value="Scheduled">Scheduled</option>
-                <option value="Ongoing">Ongoing</option>
-                <option value="Completed">Completed</option>
-                <option value="Cancelled">Cancelled</option>
+                <option value="Scheduled" {% if event and event.Status == 'Scheduled' %}selected{% endif %}>Scheduled</option>
+                <option value="Ongoing" {% if event and event.Status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
+                <option value="Completed" {% if event and event.Status == 'Completed' %}selected{% endif %}>Completed</option>
+                <option value="Cancelled" {% if event and event.Status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label">Round <span class="text-muted">(optional)</span></label>
-              <input type="text" name="round_name" class="form-control" placeholder="e.g. Quarter-Final"/>
+              <input type="text" name="round_name" class="form-control" placeholder="e.g. Quarter-Final"
+                     value="{{ event.Round if event and event.Round else '' }}"/>
             </div>
           </div>
           <div class="mt-4">
-            <button type="submit" class="btn btn-primary">Create Event</button>
+            <button type="submit" class="btn btn-primary">
+              {% if event %}Save Changes{% else %}Create Event{% endif %}
+            </button>
+            {% if event %}
+            <a href="/ui/events/{{ event.EventID }}" class="btn ms-2">Cancel</a>
+            {% else %}
             <a href="/ui/events" class="btn ms-2">Cancel</a>
+            {% endif %}
           </div>
         </form>
       </div>
