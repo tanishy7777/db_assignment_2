@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tournaments — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col"><h2 class="page-title">Tournaments</h2></div>
+      {% if current_user.role == "Admin" %}
+      <div class="col-auto">
+        <a href="/ui/tournaments/new" class="btn btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
+               stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Tournament
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-vcenter table-hover card-table">
+          <thead>
+            <tr><th>Name</th><th>Start</th><th>End</th><th>Status</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+          {% for t in tournaments %}
+            <tr>
+              <td><a href="/ui/tournaments/{{ t.TournamentID }}">{{ t.TournamentName }}</a></td>
+              <td class="text-muted">{{ t.StartDate }}</td>
+              <td class="text-muted">{{ t.EndDate }}</td>
+              <td>
+                <span class="badge bg-{% if t.Status == 'Ongoing' %}green{% elif t.Status == 'Upcoming' %}blue{% else %}secondary{% endif %}-lt">
+                  {{ t.Status }}
+                </span>
+              </td>
+              <td class="text-muted">{{ t.Description or '—' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-muted text-center">No tournaments yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
