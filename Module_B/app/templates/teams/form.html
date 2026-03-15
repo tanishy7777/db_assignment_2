@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{% if team %}Edit {{ team.TeamName }}{% else %}New Team{% endif %} — Olympia Track{% endblock %}
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto"><a href="/ui/teams" class="btn btn-outline-secondary btn-sm">Back</a></div>
+      <div class="col">
+        <h2 class="page-title">{% if team %}Edit Team{% else %}New Team{% endif %}</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="container-xl">
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+    <div class="card">
+      <div class="card-body">
+        <form method="post" action="{% if team %}/ui/teams/{{ team.TeamID }}/edit{% else %}/ui/teams/new{% endif %}">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Team Name</label>
+              <input type="text" name="team_name" class="form-control" required
+                     value="{{ team.TeamName if team else '' }}"/>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Sport</label>
+              <select name="sport_id" class="form-select" required>
+                {% for s in sports %}
+                <option value="{{ s.SportID }}"
+                  {% if team and team.SportID == s.SportID %}selected{% endif %}>
+                  {{ s.SportName }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Coach <span class="text-muted">(optional)</span></label>
+              <select name="coach_id" class="form-select">
+                <option value="">— None —</option>
+                {% for c in coaches %}
+                <option value="{{ c.MemberID }}"
+                  {% if team and team.CoachID == c.MemberID %}selected{% endif %}>
+                  {{ c.Name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Formed Date</label>
+              <input type="date" name="formed_date" class="form-control" required
+                     value="{{ team.FormedDate if team else '' }}"/>
+            </div>
+          </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">
+              {% if team %}Save Changes{% else %}Create Team{% endif %}
+            </button>
+            <a href="/ui/teams{% if team %}/{{ team.TeamID }}{% endif %}" class="btn ms-2">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
