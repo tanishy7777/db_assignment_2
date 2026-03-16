@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
+env_path = ".env.example"
 
+# Force it to load from that specific path
 load_dotenv()
 
 DB_CONFIG_AUTH = {

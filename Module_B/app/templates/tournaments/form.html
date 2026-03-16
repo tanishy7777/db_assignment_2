@@ -32,7 +32,7 @@
             <div class="col-md-6">
               <label class="form-label">Tournament Name</label>
               <input type="text" name="tournament_name" class="form-control" required
-                     value="{{ tournament.TournamentName if tournament else '' }}"/>
+                     value="{{ form_data.tournament_name if form_data.tournament_name else '' }}"/>
             </div>
             <div class="col-md-3">
               <label class="form-label">Status</label>
@@ -45,17 +45,17 @@
             <div class="col-md-3">
               <label class="form-label">Start Date</label>
               <input type="date" name="start_date" class="form-control" required
-                     value="{{ tournament.StartDate if tournament else '' }}"/>
+                     value="{{ form_data.start_date if form_data.start_date else '' }}"/>
             </div>
             <div class="col-md-3">
               <label class="form-label">End Date</label>
               <input type="date" name="end_date" class="form-control" required
-                     value="{{ tournament.EndDate if tournament else '' }}"/>
+                     value="{{ form_data.end_date if form_data.end_date else '' }}"/>
             </div>
             <div class="col-md-9">
               <label class="form-label">Description <span class="text-muted">(optional)</span></label>
               <input type="text" name="description" class="form-control"
-                     value="{{ tournament.Description if tournament and tournament.Description else '' }}"/>
+                     value="{{ form_data.description if form_data.description else '' }}"/>
             </div>
           </div>
           <div class="mt-4">

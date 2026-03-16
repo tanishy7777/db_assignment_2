@@ -23,24 +23,28 @@
   <div class="container-xl">
     <div class="card">
       <div class="card-header">
-        <div class="col-auto">
-          <select id="status-filter" class="form-select form-select-sm">
-            <option value="">All statuses</option>
-            <option value="Scheduled">Scheduled</option>
-            <option value="Ongoing">Ongoing</option>
-            <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
+        <div class="input-group">
+          <select id="filter-attribute" class="form-select">
+            <option value="all">All attributes</option>
+            <option value="event">Event Name</option>
+            <option value="date">Date</option>
+            <option value="sport">Sport</option>
+            <option value="venue">Venue</option>
+            <option value="tournament">Tournament</option>
+            <option value="round">Round</option>
+            <option value="status">Status</option>
           </select>
+          <input id="search" type="text" class="form-control" placeholder="Enter value to filter..."/>
         </div>
       </div>
       <div class="table-responsive">
         <table class="table table-vcenter table-hover card-table" id="events-table">
           <thead>
-            <tr><th>Event</th><th>Date</th><th>Sport</th><th>Venue</th><th>Tournament</th><th>Round</th><th>Status</th></tr>
+            <tr><th>Event</th><th>Date</th><th>Sport</th><th>Venue</th><th>Tournament</th><th>Round</th><th>Status</th><th></th></tr>
           </thead>
           <tbody>
           {% for ev in events %}
-            <tr data-status="{{ ev.Status }}">
+            <tr>
               <td><a href="/ui/events/{{ ev.EventID }}">{{ ev.EventName }}</a></td>
               <td class="text-muted">{{ ev.EventDate }}</td>
               <td>{{ ev.SportName }}</td>
@@ -51,6 +55,16 @@
                 <span class="badge bg-{% if ev.Status == 'Ongoing' %}green{% elif ev.Status == 'Scheduled' %}blue{% elif ev.Status == 'Cancelled' %}red{% else %}secondary{% endif %}-lt">
                   {{ ev.Status }}
                 </span>
+              </td>
+              <td class="text-end">
+                <a href="/ui/events/{{ ev.EventID }}" class="btn btn-sm btn-outline-primary">View</a>
+                {% if current_user.role == "Admin" %}
+                <a href="/ui/events/{{ ev.EventID }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
+                <form action="/ui/events/{{ ev.EventID }}/delete" method="post" class="d-inline"
+                      onsubmit="return confirm('Delete {{ ev.EventName }}?')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
@@ -63,11 +77,24 @@
 {% endblock %}
 {% block scripts %}
 <script>
-document.getElementById('status-filter').addEventListener('change', function() {
-  const v = this.value;
+function filterEvents() {
+  const attribute = document.getElementById('filter-attribute').value;
+  const q = document.getElementById('search').value.toLowerCase();
+  const colIndex = {event: 0, date: 1, sport: 2, venue: 3, tournament: 4, round: 5, status: 6};
   document.querySelectorAll('#events-table tbody tr').forEach(function(row) {
-    row.style.display = (!v || row.dataset.status === v) ? '' : 'none';
+    if (attribute === 'all') {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    } else {
+      const index = colIndex[attribute];
+      if (index !== undefined) {
+        const cell = row.querySelector(`td:nth-child(${index + 1})`);
+        row.style.display = cell.textContent.toLowerCase().includes(q) ? '' : 'none';
+      }
+    }
   });
-});
+}
+
+document.getElementById('filter-attribute').addEventListener('change', filterEvents);
+document.getElementById('search').addEventListener('input', filterEvents);
 </script>
 {% endblock %}
