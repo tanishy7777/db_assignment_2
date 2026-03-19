@@ -62,7 +62,13 @@
               {% for i in issues %}
                 <tr>
                   <td>{{ i.EquipmentName }}</td>
-                  <td><a href="/ui/members/{{ i.MemberID }}">{{ i.MemberName }}</a></td>
+                  <td>
+                    {% if current_user.role in ("Admin", "Coach") or current_user.member_id == i.MemberID %}
+                    <a href="/ui/members/{{ i.MemberID }}">{{ i.MemberName }}</a>
+                    {% else %}
+                    {{ i.MemberName }}
+                    {% endif %}
+                  </td>
                   <td class="text-muted">{{ i.IssueDate }}</td>
                   <td>{{ i.Quantity }}</td>
                   {% if current_user.role in ("Admin", "Coach") %}
@@ -86,6 +92,44 @@
         </div>
       </div>
 
+      {% if current_user.role == "Admin" %}
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Add Inventory Item</h3></div>
+          <div class="card-body">
+            <form method="post" action="/ui/equipment/new">
+              <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label class="form-label">Item Name</label>
+                  <input type="text" name="equipment_name" class="form-control" required/>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Total Quantity</label>
+                  <input type="number" name="total_quantity" class="form-control" required min="0" value="1"/>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Condition</label>
+                  <select name="equipment_condition" class="form-select" required>
+                    <option value="New">New</option>
+                    <option value="Good">Good</option>
+                    <option value="Fair">Fair</option>
+                    <option value="Poor">Poor</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Sport ID</label>
+                  <input type="number" name="sport_id" class="form-control" min="1" placeholder="Optional"/>
+                </div>
+                <div class="col-md-2">
+                  <button type="submit" class="btn btn-primary w-100">Add Item</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       {% if current_user.role in ("Admin", "Coach") %}
       <div class="col-12">
         <div class="card">
@@ -102,12 +146,15 @@
                   </select>
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">Member</label>
-                  <select name="member_id" class="form-select" required>
-                    {% for m in members %}
-                    <option value="{{ m.MemberID }}">{{ m.Name }}</option>
-                    {% endfor %}
-                  </select>
+                  <label class="form-label">Member ID</label>
+                  <input type="number" name="member_id" class="form-control" required min="1" placeholder="Enter member ID"/>
+                  <div class="form-text">
+                    {% if current_user.role == "Coach" %}
+                    Enter a member ID from one of your teams.
+                    {% else %}
+                    Search and enter the member ID directly.
+                    {% endif %}
+                  </div>
                 </div>
                 <div class="col-md-2">
                   <label class="form-label">Issue Date</label>

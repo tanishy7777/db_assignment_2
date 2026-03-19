@@ -47,7 +47,7 @@
           </div>
         </div>
 
-        {% if current_user.role == "Admin" and eligible_teams %}
+        {% if current_user.role in ("Admin", "Coach") and eligible_teams %}
         <div class="card mt-3">
           <div class="card-header"><h3 class="card-title">Add Team</h3></div>
           <div class="card-body">
@@ -55,11 +55,14 @@
               <select name="team_id" class="form-select form-select-sm" required>
                 <option value="">— Select team —</option>
                 {% for t in eligible_teams %}
-                <option value="{{ t.TeamID }}">{{ t.TeamName }}</option>
+                <option value="{{ t.TeamID }}">{{ t.TeamID }} - {{ t.TeamName }}</option>
                 {% endfor %}
               </select>
               <button type="submit" class="btn btn-sm btn-success text-nowrap">Add</button>
             </form>
+            {% if current_user.role == "Coach" %}
+            <div class="form-text mt-2">You can only add teams that you coach.</div>
+            {% endif %}
           </div>
         </div>
         {% endif %}
@@ -72,7 +75,7 @@
             <table class="table table-vcenter card-table">
               <thead>
                 <tr><th>Team</th><th>Score</th><th>Rank</th><th>Result</th><th>Remarks</th>
-                  {% if current_user.role == "Admin" %}<th></th>{% endif %}
+                  {% if current_user.role in ("Admin", "Coach") %}<th></th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -89,17 +92,19 @@
                     {% else %}—{% endif %}
                   </td>
                   <td class="text-muted">{{ p.Remarks or '—' }}</td>
-                  {% if current_user.role == "Admin" %}
+                  {% if current_user.role in ("Admin", "Coach") %}
                   <td class="text-end">
+                    {% if current_user.role == "Admin" or p.CoachID == current_user.member_id %}
                     <form method="post" action="/ui/events/{{ event.EventID }}/remove-team/{{ p.TeamID }}"
                           onsubmit="return confirm('Remove {{ p.TeamName }} from this event?')">
                       <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                     </form>
+                    {% endif %}
                   </td>
                   {% endif %}
                 </tr>
               {% else %}
-                <tr><td colspan="{% if current_user.role == 'Admin' %}6{% else %}5{% endif %}" class="text-muted text-center">No teams registered</td></tr>
+                <tr><td colspan="{% if current_user.role in ('Admin', 'Coach') %}6{% else %}5{% endif %}" class="text-muted text-center">No teams registered</td></tr>
               {% endfor %}
               </tbody>
             </table>

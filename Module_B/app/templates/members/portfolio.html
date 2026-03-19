@@ -23,7 +23,7 @@
   <div class="container-xl">
     <div class="row row-cards">
 
-      <!-- Profile card -->
+      
       <div class="col-md-4">
         <div class="card">
           <div class="card-body text-center">
@@ -57,7 +57,7 @@
           </div>
         </div>
 
-        <!-- Teams card -->
+        
         <div class="card mt-3">
           <div class="card-header"><h3 class="card-title">Teams</h3></div>
           <div class="list-group list-group-flush">
@@ -82,10 +82,10 @@
         </div>
       </div>
 
-      <!-- Right column -->
+      
       <div class="col-md-8">
 
-        <!-- Performance logs -->
+        
         <div class="card mb-3">
           <div class="card-header">
             <h3 class="card-title">Performance History</h3>
@@ -164,7 +164,7 @@
           {% endif %}
         </div>
 
-        <!-- Medical records -->
+        
         {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
         <div class="card">
           <div class="card-header">

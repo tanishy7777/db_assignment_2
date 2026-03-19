@@ -24,8 +24,8 @@
             {% if not member %}
             <div class="col-md-3">
               <label class="form-label">Member ID</label>
-              <input type="number" name="member_id" class="form-control" required
-                     value="{{ form_data.get('MemberID','') }}"/>
+              <input type="text" class="form-control" value="Auto-generated" disabled/>
+              <div class="form-text">The system will assign the member ID automatically.</div>
             </div>
             {% endif %}
             <div class="col-md-{% if member %}6{% else %}5{% endif %}">
@@ -43,10 +43,19 @@
               <input type="number" name="age" class="form-control" required min="1"
                      value="{{ form_data.get('Age','') or (member.Age if member else '') }}"/>
             </div>
+            <div class="col-md-2">
+              <label class="form-label">Country Code</label>
+              <select name="contact_country_code" class="form-select" required>
+                {% for code in country_codes %}
+                <option value="{{ code }}" {% if form_data.get('ContactCountryCode') == code %}selected{% endif %}>{{ code }}</option>
+                {% endfor %}
+              </select>
+            </div>
             <div class="col-md-3">
               <label class="form-label">Contact Number</label>
-              <input type="text" name="contact_number" class="form-control" required
-                     value="{{ form_data.get('ContactNumber','') or (member.ContactNumber if member else '') }}"/>
+              <input type="text" name="contact_number_local" class="form-control" required maxlength="10" pattern="[0-9]{10}"
+                     placeholder="10-digit number" value="{{ form_data.get('ContactNumberLocal','') }}"/>
+              <div class="form-text">Enter exactly 10 digits.</div>
             </div>
             <div class="col-md-2">
               <label class="form-label">Gender</label>

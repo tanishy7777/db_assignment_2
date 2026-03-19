@@ -1,11 +1,3 @@
--- ================================================================
--- SEED USERS
--- Maps to sample Members in olympia_track:
---   MemberID 18 = Vikram Reddy  (Admin)
---   MemberID 13 = Raj Kumar     (Coach)
---   MemberID 1  = Aarav Sharma  (Player)
--- Passwords: admin123 / coach123 / player123
--- ================================================================
 
 USE olympia_auth;
 

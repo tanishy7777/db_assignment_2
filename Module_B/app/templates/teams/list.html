@@ -50,9 +50,7 @@
               <td class="text-muted">{{ t.FormedDate }}</td>
               <td class="text-end">
                 <a href="/ui/teams/{{ t.TeamID }}" class="btn btn-sm btn-outline-primary">View</a>
-                <!-- {% if current_user.role in ("Admin", "Coach") %}
-                <a href="/ui/teams/{{ t.TeamID }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
-                {% endif %} -->
+                
                 {% if current_user.role == "Admin" or (current_user.role == "Coach" and t.CoachID == current_user.member_id) %}
                 <a href="/ui/teams/{{ t.TeamID }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
                 <form action="/ui/teams/{{ t.TeamID }}/delete" method="post" class="d-inline"

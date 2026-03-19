@@ -1,8 +1,3 @@
--- ================================================================
--- Phase 4: Tournament Registration Table
--- Tracks which teams are registered for which tournaments.
--- Teams must register for a tournament before joining its events.
--- ================================================================
 
 USE olympia_track;
 

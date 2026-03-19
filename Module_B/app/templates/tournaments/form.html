@@ -37,10 +37,11 @@
             <div class="col-md-3">
               <label class="form-label">Status</label>
               <select name="status" class="form-select" required>
-                <option value="Upcoming" {% if tournament and tournament.Status == 'Upcoming' %}selected{% endif %}>Upcoming</option>
-                <option value="Ongoing" {% if tournament and tournament.Status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
-                <option value="Completed" {% if tournament and tournament.Status == 'Completed' %}selected{% endif %}>Completed</option>
+                <option value="Upcoming" {% if form_data.status == 'Upcoming' or (tournament and tournament.Status == 'Upcoming' and not form_data.status) %}selected{% endif %}>Upcoming</option>
+                <option value="Ongoing" {% if form_data.status == 'Ongoing' or (tournament and tournament.Status == 'Ongoing' and not form_data.status) %}selected{% endif %}>Ongoing</option>
+                <option value="Completed" {% if form_data.status == 'Completed' or (tournament and tournament.Status == 'Completed' and not form_data.status) %}selected{% endif %}>Completed</option>
               </select>
+              <div class="form-text">Status is derived from the start and end dates when the form is submitted.</div>
             </div>
             <div class="col-md-3">
               <label class="form-label">Start Date</label>
