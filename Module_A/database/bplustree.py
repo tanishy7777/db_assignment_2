@@ -1,5 +1,6 @@
 import math
 from bisect import bisect_left, bisect_right
+from graphviz import Digraph
 
 
 class BPlusTreeNode:
@@ -113,3 +114,58 @@ class BPlusTree:
             curr.values.pop(i)
             return True
         return False
+
+    def visualize(self, filename="bplustree"):
+        dot = Digraph()
+        dot.attr(rankdir="TB")
+
+        node_map = {}
+        node_id = 0
+
+        def traverse(node):
+            nonlocal node_id
+
+            curr_id = f"node{node_id}"
+            node_map[node] = curr_id
+            node_id += 1
+
+            if node.is_leaf:
+                rows = ""
+                for k, v in zip(node.keys, node.values):
+                    rows += f"<TR><TD>{k}</TD><TD>{v}</TD></TR>"
+
+                label = f"""<
+                <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0">
+                    {rows}
+                </TABLE>
+                >"""
+
+                dot.node(curr_id, label=label)
+
+            else:
+                label = " | ".join(str(k) for k in node.keys)
+                dot.node(curr_id, label)
+
+            if not node.is_leaf:
+                for child in node.children:
+                    child_id = traverse(child)
+                    dot.edge(curr_id, child_id)
+
+            return curr_id
+
+        traverse(self.root)
+
+        curr = self.root
+        while not curr.is_leaf:
+            curr = curr.children[0]
+
+        while curr and curr.next:
+            dot.edge(
+                node_map[curr],
+                node_map[curr.next],
+                style="dashed",
+                constraint="false"
+            )
+            curr = curr.next
+
+        dot.render(filename, format="png", cleanup=True)
