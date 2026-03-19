@@ -44,10 +44,14 @@ def _get_member_or_404(track_db, member_id: int) -> dict:
     return row
 
 
-def _can_view_member(current_user: dict, member_id: int) -> bool:
-    """Players may only view their own profile."""
-    if current_user["role"] in ("Admin", "Coach"):
+def _can_view_member(current_user: dict, member_role: str, member_id: int) -> bool:
+    if current_user["role"] == "Admin":
         return True
+    elif current_user["role"] == "Coach":
+        if member_role == "Player" or member_role == "Coach":
+            return True
+        else:
+            return False
     return current_user["member_id"] == member_id
 
 
@@ -63,12 +67,13 @@ def list_members(
     ip = request.client.host if request.client else "unknown"
 
     if current_user["role"] == "Player":
-        track_db.execute(
-            "SELECT * FROM Member WHERE MemberID = %s",
-            (current_user["member_id"],),
-        )
+        track_db.execute("SELECT MemberID, Name, Role, Gender FROM Member WHERE Role = 'Player'")
+    elif current_user["role"] == "Coach":
+        track_db.execute("SELECT MemberID, Name, Role, Gender FROM Member WHERE Role = 'Coach' or Role = 'Player'")
     else:
         track_db.execute("SELECT * FROM Member ORDER BY MemberID")
+        # for m in track_db.fetchall():
+        #     m['JoinDate'] = str(m['JoinDate'])
 
     rows = track_db.fetchall()
 
@@ -108,8 +113,9 @@ def get_member_portfolio(
     auth_db=Depends(get_auth_db),
 ):
     ip = request.client.host if request.client else "unknown"
-
-    if not _can_view_member(current_user, member_id):
+    track_db.execute("SELECT * FROM Member WHERE MemberID = %s", (member_id,))
+    member = track_db.fetchone()
+    if not _can_view_member(current_user, member["Role"], member_id):
         write_audit_log(
             auth_db, current_user["user_id"], current_user["username"],
             "SELECT", "Member", str(member_id), "UNAUTHORIZED",
@@ -212,7 +218,7 @@ def create_member(
     ip = request.client.host if request.client else "unknown"
 
     if body.age <= 0:
-        raise HTTPException(status_code=400, detail="Age must be a positive number.")
+        return {"success": False, "message": "Age must be a positive number.", "data": body}
 
     # Insert into olympia_track.Member
     try:
@@ -232,7 +238,7 @@ def create_member(
             auth_db, current_user["user_id"], current_user["username"],
             "INSERT", "Member", str(body.member_id), "FAILURE", {"error": str(e)}, ip,
         )
-        raise HTTPException(status_code=400, detail=str(e))
+        return {"success": False, "message": str(e), "data": body}
 
     # Create auth account
     pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
@@ -246,14 +252,15 @@ def create_member(
             auth_db, current_user["user_id"], current_user["username"],
             "INSERT", "users", None, "FAILURE", {"error": str(e)}, ip,
         )
-        raise HTTPException(status_code=400, detail=f"Auth account error: {e}")
+        # raise HTTPException(status_code=400, detail=f"Auth account error: {e}")
+        return {"success": False, "message": str(e), "data": body}
 
     write_audit_log(
         auth_db, current_user["user_id"], current_user["username"],
         "INSERT", "Member", str(body.member_id), "SUCCESS",
         {"name": body.name, "role": body.role}, ip,
     )
-    return {"success": True, "message": "Member created", "data": {"member_id": body.member_id}}
+    return {"success": True, "message": "Member created", "data": body}
 
 
 # ── PUT /api/members/{id} ──────────────────────────────────────────────────────
