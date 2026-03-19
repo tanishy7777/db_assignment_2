@@ -2,17 +2,17 @@ from bplustree import BPlusTree
 
 
 class Table:
-    def __init__(self, name, columns, primary_key_index=0):
+    def __init__(self, name, columns, pk_index=0):
         self.name = name
         self.columns = columns
-        self.primary_key_index = primary_key_index
+        self.pk_index = pk_index
         self.index = BPlusTree(order=4)
 
     def insert_record(self, record):
         if len(record) != len(self.columns):
             raise ValueError("Record does not match table columns.")
 
-        key = record[self.primary_key_index]
+        key = record[self.pk_index]
         self.index.insert(key, record)
 
     def search_record(self, key):

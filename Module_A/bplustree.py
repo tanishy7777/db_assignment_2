@@ -1,5 +1,5 @@
 import math
-import bisect
+from bisect import bisect_left, bisect_right
 
 
 class BPlusTreeNode:
@@ -21,10 +21,10 @@ class BPlusTree:
     def search(self, key):
         curr = self.root
         while not curr.is_leaf:
-            i = bisect.bisect_right(curr.keys, key)
+            i = bisect_right(curr.keys, key)
             curr = curr.children[i]
 
-        i = bisect.bisect_left(curr.keys, key)
+        i = bisect_left(curr.keys, key)
         if i < len(curr.keys) and curr.keys[i] == key:
             return curr.values[i]
         return None
@@ -42,11 +42,11 @@ class BPlusTree:
 
     def _insert_non_full(self, node, key, value):
         if node.is_leaf:
-            i = bisect.bisect_right(node.keys, key)
+            i = bisect_right(node.keys, key)
             node.keys.insert(i, key)
             node.values.insert(i, value)
         else:
-            i = bisect.bisect_right(node.keys, key)
+            i = bisect_right(node.keys, key)
             if len(node.children[i].keys) == self.order - 1:
                 self._split_child(node, i)
                 if key > node.keys[i]:
@@ -85,12 +85,12 @@ class BPlusTree:
     def range_query(self, start_key, end_key):
         curr = self.root
         while not curr.is_leaf:
-            i = bisect.bisect_right(curr.keys, start_key)
+            i = bisect_right(curr.keys, start_key)
             curr = curr.children[i]
 
         results = []
         while curr is not None:
-            i = bisect.bisect_left(curr.keys, start_key)
+            i = bisect_left(curr.keys, start_key)
             while i < len(curr.keys):
                 k = curr.keys[i]
                 if k <= end_key:
@@ -104,10 +104,10 @@ class BPlusTree:
     def delete(self, key):
         curr = self.root
         while not curr.is_leaf:
-            i = bisect.bisect_right(curr.keys, key)
+            i = bisect_right(curr.keys, key)
             curr = curr.children[i]
 
-        i = bisect.bisect_left(curr.keys, key)
+        i = bisect_left(curr.keys, key)
         if i < len(curr.keys) and curr.keys[i] == key:
             curr.keys.pop(i)
             curr.values.pop(i)

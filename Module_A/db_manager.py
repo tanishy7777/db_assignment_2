@@ -5,11 +5,11 @@ class DatabaseManager:
     def __init__(self):
         self.tables = {}
 
-    def create_table(self, table_name, columns, primary_key_index=0):
+    def create_table(self, table_name, columns, pk_index=0):
         if table_name in self.tables:
             raise ValueError(f"Table '{table_name}' already exists.")
 
-        new_table = Table(table_name, columns, primary_key_index)
+        new_table = Table(table_name, columns, pk_index)
         self.tables[table_name] = new_table
         return new_table
 
