@@ -1,38 +1,19 @@
 from fastapi import FastAPI, Depends
-
 from fastapi.responses import RedirectResponse
-
-
-
 from app.database import get_auth_db, get_track_db
-
 from app.auth.router import router as auth_router
-
 from app.routers.members import router as members_router
-
 from app.routers.teams import router as teams_router
-
 from app.routers.tournaments import router as tournaments_router
-
 from app.routers.events import router as events_router
-
 from app.routers.equipment import router as equipment_router
-
 from app.routers.performance import router as performance_router
-
 from app.routers.medical import router as medical_router
-
 from app.routers.admin import router as admin_router
-
 from app.routers.registration import router as registration_router
-
 from app.ui.routes import router as ui_router
 
-
-
 app = FastAPI(title="Olympia Track", version="1.0")
-
-
 
 app.include_router(auth_router,        prefix="/auth",                  tags=["auth"])
 
@@ -57,32 +38,16 @@ app.include_router(registration_router, prefix="/api/registrations",    tags=["r
 app.include_router(ui_router,           prefix="/ui",                   tags=["ui"])
 
 
-
-
-
 @app.get("/")
-
 def root():
-
     return RedirectResponse(url="/ui/login", status_code=303)
 
 
-
-
-
 @app.get("/health")
-
 def health(
-
     auth_db=Depends(get_auth_db),
-
     track_db=Depends(get_track_db),
-
 ):
-
     auth_db.execute("SELECT 1")
-
     track_db.execute("SELECT 1")
-
     return {"olympia_auth": "ok", "olympia_track": "ok"}
-
