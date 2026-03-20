@@ -80,10 +80,11 @@ def _validate_equipment_payload(
     total_quantity: Optional[int],
     sport_id: Optional[int],
     equipment_id: Optional[int] = None,
+    validate_sport: bool = True,
 ) -> None:
     if total_quantity is not None and total_quantity < 0:
         raise HTTPException(status_code=400, detail="Total quantity cannot be negative.")
-    if sport_id is not None:
+    if validate_sport and sport_id is not None:
         track_db.execute("SELECT SportID FROM Sport WHERE SportID = %s", (sport_id,))
         if not track_db.fetchone():
             raise HTTPException(status_code=400, detail="Selected sport is not valid.")
@@ -113,7 +114,7 @@ def create_equipment(
     auth_db=Depends(get_auth_db),
 ):
     ip = request.client.host if request.client else "unknown"
-    _validate_equipment_payload(track_db, body.total_quantity, body.sport_id)
+    _validate_equipment_payload(track_db, body.total_quantity, body.sport_id, validate_sport=False)
     equipment_id = body.equipment_id
     try:
         equipment_id = insert_with_generated_id(
@@ -393,9 +394,10 @@ def return_equipment(
     if issue.get("ReturnDate"):
         raise HTTPException(status_code=400, detail="This equipment issue has already been returned.")
     try:
-        parsed_issue_date = parse_iso_date(str(issue["IssueDate"]), "Issue date")
         parsed_return_date = parse_iso_date(return_date, "Return date")
-        validate_date_order(parsed_issue_date, parsed_return_date, "Issue date", "Return date")
+        if issue.get("IssueDate") is not None:
+            parsed_issue_date = parse_iso_date(str(issue["IssueDate"]), "Issue date")
+            validate_date_order(parsed_issue_date, parsed_return_date, "Issue date", "Return date")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     track_db.execute(

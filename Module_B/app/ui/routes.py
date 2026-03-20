@@ -1302,27 +1302,9 @@ def equipment_create(
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/equipment", status_code=303)
     try:
-        parsed_sport_id = _parse_optional_int(sport_id, "Sport")
+        parsed_sport_id = _parse_optional_int(sport_id, "Sport ID")
     except ValueError as exc:
-        return templates.TemplateResponse(
-            request,
-            "equipment/form.html",
-            _ctx(
-                request,
-                current_user,
-                active="equipment",
-                equipment=None,
-                sports=_get_sports(track_db),
-                form_data=_equipment_form_data(
-                    equipment_name=equipment_name,
-                    total_quantity=total_quantity,
-                    equipment_condition=equipment_condition,
-                    sport_id=sport_id,
-                ),
-                error=str(exc),
-            ),
-            status_code=400,
-        )
+        return _flash_redirect("/ui/equipment", error=str(exc))
     body = EquipmentCreate(
         equipment_name=equipment_name,
         total_quantity=total_quantity,
@@ -1332,25 +1314,7 @@ def equipment_create(
     try:
         api_create_equipment(body, request, current_user, track_db, auth_db)
     except HTTPException as exc:
-        return templates.TemplateResponse(
-            request,
-            "equipment/form.html",
-            _ctx(
-                request,
-                current_user,
-                active="equipment",
-                equipment=None,
-                sports=_get_sports(track_db),
-                form_data=_equipment_form_data(
-                    equipment_name=equipment_name,
-                    total_quantity=total_quantity,
-                    equipment_condition=equipment_condition,
-                    sport_id=parsed_sport_id,
-                ),
-                error=exc.detail,
-            ),
-            status_code=exc.status_code,
-        )
+        return _flash_redirect("/ui/equipment", error=exc.detail)
     return _flash_redirect("/ui/equipment", success="Equipment added successfully.")
 
 
@@ -1402,7 +1366,7 @@ def equipment_edit_submit(
     except HTTPException:
         return _flash_redirect("/ui/equipment", error="Equipment item not found.")
     try:
-        parsed_sport_id = _parse_optional_int(sport_id, "Sport")
+        parsed_sport_id = _parse_optional_int(sport_id, "Sport ID")
     except ValueError as exc:
         return templates.TemplateResponse(
             request,
