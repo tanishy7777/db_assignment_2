@@ -1,58 +1,78 @@
 {% extends "base.html" %}
 {% block title %}Edit Medical Record — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col-auto">
-        <a href="/ui/members/{{ record.MemberID }}" class="btn btn-outline-secondary btn-sm">Back</a>
-      </div>
-      <div class="col"><h2 class="page-title">Edit Medical Record</h2></div>
-    </div>
-  </div>
-</div>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-2xl mx-auto">
 
-<div class="page-body">
-  <div class="container-xl">
-    {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-    {% endif %}
-    <div class="card" style="max-width:600px">
-      <div class="card-body">
-        <form method="post" action="/ui/medical-records/{{ record.RecordID }}/edit">
-          <input type="hidden" name="member_id" value="{{ record.MemberID }}"/>
-          <div class="row g-3">
-            <div class="col-12">
-              <label class="form-label">Condition</label>
-              <input type="text" name="medical_condition" class="form-control" required
-                     value="{{ record.MedicalCondition }}"/>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Diagnosis Date</label>
-              <input type="date" name="diagnosis_date" class="form-control" required
-                     value="{{ record.DiagnosisDate }}"/>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Recovery Date <span class="text-muted">(opt.)</span></label>
-              <input type="date" name="recovery_date" class="form-control"
-                     value="{{ record.RecoveryDate or '' }}"/>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Status</label>
-              <select name="status" class="form-select" required>
-                <option value="Active" {% if record.Status == 'Active' %}selected{% endif %}>Active</option>
-                <option value="Recovered" {% if record.Status == 'Recovered' %}selected{% endif %}>Recovered</option>
-                <option value="Chronic" {% if record.Status == 'Chronic' %}selected{% endif %}>Chronic</option>
-              </select>
-            </div>
-          </div>
-          <div class="mt-4 d-flex gap-2">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="/ui/members/{{ record.MemberID }}" class="btn">Cancel</a>
-          </div>
-        </form>
-      </div>
-    </div>
+  <a href="/ui/members/{{ record.MemberID }}" class="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back to Member
+  </a>
+
+  <div class="mb-8">
+    <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Confidential</span>
+    <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Edit Medical Record</h2>
   </div>
+
+  {% if error %}
+  <div class="mb-6 flex items-center gap-3 p-4 bg-error-container rounded-xl border-l-4 border-error">
+    <span class="material-symbols-outlined text-error">error</span>
+    <p class="text-sm font-medium text-on-error-container">{{ error }}</p>
+  </div>
+  {% endif %}
+
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6 sm:p-8">
+    <form method="post" action="/ui/medical-records/{{ record.RecordID }}/edit">
+      <input type="hidden" name="member_id" value="{{ record.MemberID }}"/>
+      <div class="grid grid-cols-1 gap-5">
+
+        <!-- Condition -->
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Condition</label>
+          <input type="text" name="medical_condition" required value="{{ record.MedicalCondition }}"
+                 class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"/>
+        </div>
+
+        <!-- Dates row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Diagnosis Date</label>
+            <input type="date" name="diagnosis_date" required value="{{ record.DiagnosisDate }}"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
+              Recovery Date
+              <span class="font-normal normal-case text-on-surface-variant/70 ml-1">— optional</span>
+            </label>
+            <input type="date" name="recovery_date" value="{{ record.RecoveryDate or '' }}"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"/>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="sm:max-w-xs">
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Status</label>
+          <select name="status" required
+                  class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200">
+            <option value="Active" {% if record.Status == 'Active' %}selected{% endif %}>Active</option>
+            <option value="Recovered" {% if record.Status == 'Recovered' %}selected{% endif %}>Recovered</option>
+            <option value="Chronic" {% if record.Status == 'Chronic' %}selected{% endif %}>Chronic</option>
+          </select>
+        </div>
+
+      </div>
+      <div class="flex items-center gap-3 mt-8">
+        <button type="submit"
+                class="bg-primary hover:bg-primary-container text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+          Save Changes
+        </button>
+        <a href="/ui/members/{{ record.MemberID }}"
+           class="bg-surface-container-lowest border border-outline-variant/30 text-on-surface px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+
 </div>
 {% endblock %}

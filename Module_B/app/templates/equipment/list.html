@@ -1,180 +1,216 @@
 {% extends "base.html" %}
 {% block title %}Equipment — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col"><h2 class="page-title">Equipment Inventory</h2></div>
-    </div>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
+
+  <!-- Page Title -->
+  <div class="mb-8">
+    <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Inventory</span>
+    <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Equipment</h2>
   </div>
-</div>
-<div class="page-body">
-  <div class="container-xl">
-    <div class="row row-cards">
 
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header"><h3 class="card-title">Inventory</h3></div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>ID</th><th>Item</th><th>Sport</th><th>Total</th><th>Available</th><th>Condition</th></tr>
-              </thead>
-              <tbody>
-              {% for e in equipment %}
-                <tr>
-                  <td class="text-muted">{{ e.EquipmentID }}</td>
-                  <td>{{ e.EquipmentName }}</td>
-                  <td class="text-muted">{{ e.SportName or 'General' }}</td>
-                  <td class="text-muted">{{ e.TotalQuantity }}</td>
-                  <td>
-                    <span class="{% if e.AvailableQuantity == 0 %}text-danger fw-bold{% elif e.AvailableQuantity <= 2 %}text-warning fw-bold{% else %}text-success{% endif %}">
-                      {{ e.AvailableQuantity }}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="badge bg-{% if e.EquipmentCondition == 'New' %}green{% elif e.EquipmentCondition == 'Good' %}blue{% elif e.EquipmentCondition == 'Fair' %}yellow{% else %}red{% endif %}-lt">
-                      {{ e.EquipmentCondition }}
-                    </span>
-                  </td>
-                </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
+  <div class="space-y-6">
+
+    <!-- Inventory Table -->
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-outline-variant/20">
+        <h3 class="font-bold text-on-surface">Inventory</h3>
       </div>
-
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Active Issues (Unreturned)</h3>
-            <div class="card-options text-muted small">{{ issues | length }} item(s) outstanding</div>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Item</th><th>Member</th><th>Issued</th><th>Qty</th>
-                  {% if current_user.role in ("Admin", "Coach") %}<th></th>{% endif %}
-                </tr>
-              </thead>
-              <tbody>
-              {% for i in issues %}
-                <tr>
-                  <td>{{ i.EquipmentName }}</td>
-                  <td>
-                    {% if current_user.role in ("Admin", "Coach") or current_user.member_id == i.MemberID %}
-                    <a href="/ui/members/{{ i.MemberID }}">{{ i.MemberName }}</a>
-                    {% else %}
-                    {{ i.MemberName }}
-                    {% endif %}
-                  </td>
-                  <td class="text-muted">{{ i.IssueDate }}</td>
-                  <td>{{ i.Quantity }}</td>
-                  {% if current_user.role in ("Admin", "Coach") %}
-                  <td class="text-end">
-                    <form action="/ui/equipment/issue/{{ i.IssueID }}/return" method="post"
-                          class="d-inline-flex align-items-center gap-2">
-                      <input type="date" name="return_date" class="form-control form-control-sm"
-                             style="width:140px" required
-                             value="{{ now_date if now_date else '' }}"/>
-                      <button type="submit" class="btn btn-sm btn-outline-success">Return</button>
-                    </form>
-                  </td>
-                  {% endif %}
-                </tr>
-              {% else %}
-                <tr><td colspan="5" class="text-muted text-center">No outstanding issues</td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-surface-container-low/50">
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">ID</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Item</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Sport</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Total</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Available</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Condition</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for e in equipment %}
+            <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+              <td class="px-6 py-4 text-sm text-on-surface-variant">{{ e.EquipmentID }}</td>
+              <td class="px-6 py-4 text-sm font-medium text-on-surface">{{ e.EquipmentName }}</td>
+              <td class="px-6 py-4 text-sm text-on-surface-variant">{{ e.SportName or 'General' }}</td>
+              <td class="px-6 py-4 text-sm text-on-surface-variant">{{ e.TotalQuantity }}</td>
+              <td class="px-6 py-4 text-sm">
+                {% if e.AvailableQuantity == 0 %}
+                <span class="font-bold text-error">{{ e.AvailableQuantity }}</span>
+                {% elif e.AvailableQuantity <= 2 %}
+                <span class="font-bold text-yellow-600">{{ e.AvailableQuantity }}</span>
+                {% else %}
+                <span class="font-semibold text-secondary">{{ e.AvailableQuantity }}</span>
+                {% endif %}
+              </td>
+              <td class="px-6 py-4 text-sm">
+                {% if e.EquipmentCondition == 'New' %}
+                <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
+                {% elif e.EquipmentCondition == 'Good' %}
+                <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
+                {% elif e.EquipmentCondition == 'Fair' %}
+                <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
+                {% else %}
+                <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
       </div>
-
-      {% if current_user.role == "Admin" %}
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header"><h3 class="card-title">Add Inventory Item</h3></div>
-          <div class="card-body">
-            <form method="post" action="/ui/equipment/new">
-              <div class="row g-3 align-items-end">
-                <div class="col-md-4">
-                  <label class="form-label">Item Name</label>
-                  <input type="text" name="equipment_name" class="form-control" required/>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Total Quantity</label>
-                  <input type="number" name="total_quantity" class="form-control" required min="0" value="1"/>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Condition</label>
-                  <select name="equipment_condition" class="form-select" required>
-                    <option value="New">New</option>
-                    <option value="Good">Good</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Poor">Poor</option>
-                  </select>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Sport ID</label>
-                  <input type="number" name="sport_id" class="form-control" min="1" placeholder="Optional"/>
-                </div>
-                <div class="col-md-2">
-                  <button type="submit" class="btn btn-primary w-100">Add Item</button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      {% if current_user.role in ("Admin", "Coach") %}
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header"><h3 class="card-title">Issue Equipment</h3></div>
-          <div class="card-body">
-            <form method="post" action="/ui/equipment/issue">
-              <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                  <label class="form-label">Equipment</label>
-                  <select name="equipment_id" class="form-select" required>
-                    {% for e in equipment %}
-                    <option value="{{ e.EquipmentID }}">{{ e.EquipmentName }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Member ID</label>
-                  <input type="number" name="member_id" class="form-control" required min="1" placeholder="Enter member ID"/>
-                  <div class="form-text">
-                    {% if current_user.role == "Coach" %}
-                    Enter a member ID from one of your teams.
-                    {% else %}
-                    Search and enter the member ID directly.
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Issue Date</label>
-                  <input type="date" name="issue_date" class="form-control" required/>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Quantity</label>
-                  <input type="number" name="quantity" class="form-control" required min="1" value="1"/>
-                </div>
-                <div class="col-md-2">
-                  <button type="submit" class="btn btn-primary w-100">Issue</button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
     </div>
+
+    <!-- Active Issues -->
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+        <h3 class="font-bold text-on-surface">Active Issues (Unreturned)</h3>
+        <span class="text-xs text-on-surface-variant">{{ issues | length }} item(s) outstanding</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-surface-container-low/50">
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Item</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Member</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Issued</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Qty</th>
+              {% if current_user.role in ("Admin", "Coach") %}
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Return</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+          {% for i in issues %}
+            <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+              <td class="px-6 py-4 text-sm font-medium text-on-surface">{{ i.EquipmentName }}</td>
+              <td class="px-6 py-4 text-sm">
+                {% if current_user.role in ("Admin", "Coach") or current_user.member_id == i.MemberID %}
+                <a href="/ui/members/{{ i.MemberID }}" class="text-secondary hover:underline">{{ i.MemberName }}</a>
+                {% else %}
+                {{ i.MemberName }}
+                {% endif %}
+              </td>
+              <td class="px-6 py-4 text-sm text-on-surface-variant">{{ i.IssueDate }}</td>
+              <td class="px-6 py-4 text-sm font-semibold text-on-surface">{{ i.Quantity }}</td>
+              {% if current_user.role in ("Admin", "Coach") %}
+              <td class="px-6 py-4 text-sm">
+                <form action="/ui/equipment/issue/{{ i.IssueID }}/return" method="post"
+                      class="flex items-center justify-end gap-2">
+                  <input type="date" name="return_date"
+                         class="bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                         style="width:140px" required
+                         value="{{ now_date if now_date else '' }}"/>
+                  <button type="submit"
+                          class="bg-secondary hover:opacity-90 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                    Return
+                  </button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="px-6 py-8 text-sm text-on-surface-variant text-center">No outstanding issues</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add Inventory Item (Admin only) -->
+    {% if current_user.role == "Admin" %}
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <h3 class="font-bold text-on-surface mb-4">Add Inventory Item</h3>
+      <form method="post" action="/ui/equipment/new">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Item Name</label>
+            <input type="text" name="equipment_name"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                   required/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Total Quantity</label>
+            <input type="number" name="total_quantity"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                   required min="0" value="1"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Condition</label>
+            <select name="equipment_condition"
+                    class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                    required>
+              <option value="New">New</option>
+              <option value="Good">Good</option>
+              <option value="Fair">Fair</option>
+              <option value="Poor">Poor</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Sport ID <span class="text-on-surface-variant font-normal">(opt.)</span></label>
+            <input type="number" name="sport_id"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                   min="1" placeholder="Optional"/>
+          </div>
+          <div>
+            <button type="submit"
+                    class="w-full bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg text-sm font-semibold transition-all shadow-sm">
+              Add Item
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Issue Equipment (Admin / Coach) -->
+    {% if current_user.role in ("Admin", "Coach") %}
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <h3 class="font-bold text-on-surface mb-4">Issue Equipment</h3>
+      <form method="post" action="/ui/equipment/issue">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Equipment</label>
+            <select name="equipment_id"
+                    class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                    required>
+              {% for e in equipment %}
+              <option value="{{ e.EquipmentID }}">{{ e.EquipmentName }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Member ID</label>
+            <input type="number" name="member_id"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                   required min="1" placeholder="Enter member ID"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Issue Date</label>
+            <input type="date" name="issue_date"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                   required/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Quantity</label>
+            <input type="number" name="quantity"
+                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                   required min="1" value="1"/>
+          </div>
+          <div class="pt-6">
+            <button type="submit"
+                    class="w-full bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg text-sm font-semibold transition-all shadow-sm">
+              Issue
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
   </div>
 </div>
 {% endblock %}

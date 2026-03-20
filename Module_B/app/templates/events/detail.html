@@ -1,117 +1,190 @@
 {% extends "base.html" %}
 {% block title %}{{ event.EventName }} — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col-auto"><a href="/ui/events" class="btn btn-outline-secondary btn-sm">Back</a></div>
-      <div class="col"><h2 class="page-title">{{ event.EventName }}</h2></div>
-      {% if current_user.role == "Admin" %}
-      <div class="col-auto d-flex gap-2">
-        <a href="/ui/events/{{ event.EventID }}/edit" class="btn btn-primary btn-sm">Edit</a>
-        <form method="post" action="/ui/events/{{ event.EventID }}/delete"
-              onsubmit="return confirm('Delete this event?')">
-          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
+
+  <!-- Back -->
+  <a href="/ui/events" class="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back to Events
+  </a>
+
+  <!-- Page Title -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Event</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">{{ event.EventName }}</h2>
+    </div>
+    {% if current_user.role == "Admin" %}
+    <div class="flex items-center gap-3">
+      <a href="/ui/events/{{ event.EventID }}/edit"
+         class="bg-surface-container-lowest border border-outline-variant/30 text-on-surface px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
+        Edit
+      </a>
+      <form method="post" action="/ui/events/{{ event.EventID }}/delete"
+            onsubmit="return confirm('Delete this event?')">
+        <button type="submit"
+                class="bg-error hover:opacity-90 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all">
+          Delete
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+    <!-- Left Column: Details + Add Team -->
+    <div class="md:col-span-4 space-y-6">
+
+      <!-- Event Details -->
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+        <h3 class="font-bold text-on-surface mb-4">Event Details</h3>
+        <dl class="space-y-3">
+          <div class="flex justify-between items-start">
+            <dt class="text-sm text-on-surface-variant">Date</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.EventDate }}</dd>
+          </div>
+          <div class="flex justify-between items-start">
+            <dt class="text-sm text-on-surface-variant">Time</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.StartTime }} – {{ event.EndTime }}</dd>
+          </div>
+          <div class="flex justify-between items-start">
+            <dt class="text-sm text-on-surface-variant">Sport</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.SportName }}</dd>
+          </div>
+          <div class="flex justify-between items-start">
+            <dt class="text-sm text-on-surface-variant">Venue</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.VenueName }}</dd>
+          </div>
+          <div class="flex justify-between items-start">
+            <dt class="text-sm text-on-surface-variant">Round</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.Round or '—' }}</dd>
+          </div>
+          <div class="flex justify-between items-start">
+            <dt class="text-sm text-on-surface-variant">Tournament</dt>
+            <dd class="text-sm font-semibold text-on-surface">
+              {% if event.TournamentID %}
+              <a href="/ui/tournaments/{{ event.TournamentID }}" class="text-secondary hover:underline">{{ event.TournamentName }}</a>
+              {% else %}—{% endif %}
+            </dd>
+          </div>
+          <div class="flex justify-between items-center">
+            <dt class="text-sm text-on-surface-variant">Status</dt>
+            <dd class="text-sm">
+              {% if event.Status == 'Ongoing' %}
+              <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+              {% elif event.Status == 'Scheduled' %}
+              <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+              {% elif event.Status == 'Cancelled' %}
+              <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+              {% else %}
+              <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+              {% endif %}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <!-- Add Team Card -->
+      {% if current_user.role in ("Admin", "Coach") and eligible_teams %}
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Add Team</h3>
+        </div>
+        <div class="px-6 py-4">
+          <form method="post" action="/ui/events/{{ event.EventID }}/add-team" class="flex gap-2">
+            <select name="team_id"
+                    class="flex-1 bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                    required>
+              <option value="">— Select team —</option>
+              {% for t in eligible_teams %}
+              <option value="{{ t.TeamID }}">{{ t.TeamID }} - {{ t.TeamName }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit"
+                    class="bg-secondary hover:opacity-90 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+              Add
+            </button>
+          </form>
+          {% if current_user.role == "Coach" %}
+          <p class="text-xs text-on-surface-variant mt-2">You can only add teams that you coach.</p>
+          {% endif %}
+        </div>
       </div>
       {% endif %}
+
     </div>
-  </div>
-</div>
-<div class="page-body">
-  <div class="container-xl">
-    <div class="row row-cards">
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-body">
-            <h3 class="card-title">Event Details</h3>
-            <dl class="row">
-              <dt class="col-5 text-muted">Date</dt>        <dd class="col-7">{{ event.EventDate }}</dd>
-              <dt class="col-5 text-muted">Time</dt>        <dd class="col-7">{{ event.StartTime }} – {{ event.EndTime }}</dd>
-              <dt class="col-5 text-muted">Sport</dt>       <dd class="col-7">{{ event.SportName }}</dd>
-              <dt class="col-5 text-muted">Venue</dt>       <dd class="col-7">{{ event.VenueName }}</dd>
-              <dt class="col-5 text-muted">Round</dt>       <dd class="col-7">{{ event.Round or '—' }}</dd>
-              <dt class="col-5 text-muted">Tournament</dt>
-              <dd class="col-7">
-                {% if event.TournamentID %}
-                <a href="/ui/tournaments/{{ event.TournamentID }}">{{ event.TournamentName }}</a>
-                {% else %}—{% endif %}
-              </dd>
-              <dt class="col-5 text-muted">Status</dt>
-              <dd class="col-7">
-                <span class="badge bg-{% if event.Status == 'Ongoing' %}green{% elif event.Status == 'Scheduled' %}blue{% elif event.Status == 'Cancelled' %}red{% else %}secondary{% endif %}-lt">
-                  {{ event.Status }}
-                </span>
-              </dd>
-            </dl>
-          </div>
-        </div>
 
-        {% if current_user.role in ("Admin", "Coach") and eligible_teams %}
-        <div class="card mt-3">
-          <div class="card-header"><h3 class="card-title">Add Team</h3></div>
-          <div class="card-body">
-            <form method="post" action="/ui/events/{{ event.EventID }}/add-team" class="d-flex gap-2">
-              <select name="team_id" class="form-select form-select-sm" required>
-                <option value="">— Select team —</option>
-                {% for t in eligible_teams %}
-                <option value="{{ t.TeamID }}">{{ t.TeamID }} - {{ t.TeamName }}</option>
-                {% endfor %}
-              </select>
-              <button type="submit" class="btn btn-sm btn-success text-nowrap">Add</button>
-            </form>
-            {% if current_user.role == "Coach" %}
-            <div class="form-text mt-2">You can only add teams that you coach.</div>
-            {% endif %}
-          </div>
+    <!-- Right Column: Participating Teams -->
+    <div class="md:col-span-8">
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Participating Teams</h3>
         </div>
-        {% endif %}
-      </div>
-
-      <div class="col-md-8">
-        <div class="card">
-          <div class="card-header"><h3 class="card-title">Participating Teams</h3></div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Team</th><th>Score</th><th>Rank</th><th>Result</th><th>Remarks</th>
-                  {% if current_user.role in ("Admin", "Coach") %}<th></th>{% endif %}
-                </tr>
-              </thead>
-              <tbody>
-              {% for p in participation %}
-                <tr>
-                  <td><a href="/ui/teams/{{ p.TeamID }}">{{ p.TeamName }}</a></td>
-                  <td>{{ p.Score or '—' }}</td>
-                  <td>{{ p.EventRank or '—' }}</td>
-                  <td>
-                    {% if p.Result %}
-                    <span class="badge bg-{% if p.Result == 'Win' %}green{% elif p.Result == 'Loss' %}red{% elif p.Result == 'Draw' %}yellow{% else %}secondary{% endif %}-lt">
-                      {{ p.Result }}
-                    </span>
-                    {% else %}—{% endif %}
-                  </td>
-                  <td class="text-muted">{{ p.Remarks or '—' }}</td>
-                  {% if current_user.role in ("Admin", "Coach") %}
-                  <td class="text-end">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Team</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Score</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Rank</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Result</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Remarks</th>
+                {% if current_user.role in ("Admin", "Coach") %}
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+            {% for p in participation %}
+              <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm">
+                  <a href="/ui/teams/{{ p.TeamID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ p.TeamName }}</a>
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.Score or '—' }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.EventRank or '—' }}</td>
+                <td class="px-6 py-4 text-sm">
+                  {% if p.Result %}
+                    {% if p.Result == 'Win' %}
+                    <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ p.Result }}</span>
+                    {% elif p.Result == 'Loss' %}
+                    <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ p.Result }}</span>
+                    {% elif p.Result == 'Draw' %}
+                    <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ p.Result }}</span>
+                    {% else %}
+                    <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ p.Result }}</span>
+                    {% endif %}
+                  {% else %}—{% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.Remarks or '—' }}</td>
+                {% if current_user.role in ("Admin", "Coach") %}
+                <td class="px-6 py-4 text-sm">
+                  <div class="flex items-center justify-end">
                     {% if current_user.role == "Admin" or p.CoachID == current_user.member_id %}
                     <form method="post" action="/ui/events/{{ event.EventID }}/remove-team/{{ p.TeamID }}"
-                          onsubmit="return confirm('Remove {{ p.TeamName }} from this event?')">
-                      <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                          onsubmit="return confirm('Remove {{ p.TeamName }} from this event?')" class="inline">
+                      <button type="submit"
+                              class="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded-lg transition-all">
+                        <span class="material-symbols-outlined text-base">remove_circle</span>
+                      </button>
                     </form>
                     {% endif %}
-                  </td>
-                  {% endif %}
-                </tr>
-              {% else %}
-                <tr><td colspan="{% if current_user.role in ('Admin', 'Coach') %}6{% else %}5{% endif %}" class="text-muted text-center">No teams registered</td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="{% if current_user.role in ('Admin', 'Coach') %}6{% else %}5{% endif %}" class="px-6 py-8 text-sm text-on-surface-variant text-center">No teams registered</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}

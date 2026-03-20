@@ -1,125 +1,200 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <h2 class="page-title">Dashboard</h2>
-        <div class="text-muted mt-1">Welcome back, <strong>{{ current_user.username }}</strong>
-          <span class="badge bg-blue-lt ms-1">{{ current_user.role }}</span>
-        </div>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
+
+  <!-- Page Title -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Overview</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">
+        Welcome back, {{ current_user.username }}
+      </h2>
+      <div class="mt-1 flex items-center gap-2">
+        {% if current_user.role == 'Admin' %}
+        <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ current_user.role }}</span>
+        {% elif current_user.role == 'Coach' %}
+        <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ current_user.role }}</span>
+        {% else %}
+        <span class="px-2.5 py-1 rounded-lg bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ current_user.role }}</span>
+        {% endif %}
       </div>
     </div>
   </div>
-</div>
 
-<div class="page-body">
-  <div class="container-xl">
+  <!-- Stat Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
-    
-    <div class="row row-deck row-cards mb-3">
-      <div class="col-sm-6 col-lg-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="subheader">Members</div>
-            </div>
-            <div class="h1 mb-3">{{ stats.members }}</div>
-            <div class="d-flex mb-2">
-              <div>Players: {{ stats.players }}, Coaches: {{ stats.coaches }}, Admins: {{ stats.admins }}</div>
-            </div>
-          </div>
+    <!-- Members -->
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Members</span>
+        <div class="w-9 h-9 rounded-xl bg-primary-fixed flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-primary-fixed-variant text-lg">groups</span>
         </div>
       </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="subheader">Teams</div>
-            <div class="h1 mb-3">{{ stats.teams }}</div>
-            <div>Across {{ stats.sports }} sports</div>
-          </div>
+      <div class="text-4xl font-extrabold font-headline text-on-surface mb-2">{{ stats.members }}</div>
+      <div class="text-xs text-on-surface-variant">
+        Players: <span class="font-semibold text-on-surface">{{ stats.players }}</span>
+        &bull; Coaches: <span class="font-semibold text-on-surface">{{ stats.coaches }}</span>
+        &bull; Admins: <span class="font-semibold text-on-surface">{{ stats.admins }}</span>
+      </div>
+    </div>
+
+    <!-- Teams -->
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Teams</span>
+        <div class="w-9 h-9 rounded-xl bg-secondary-fixed flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-secondary-fixed-variant text-lg">group_work</span>
         </div>
       </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="subheader">Upcoming Events</div>
-            <div class="h1 mb-3">{{ stats.upcoming_events }}</div>
-            <div>{{ stats.ongoing_events }} ongoing</div>
-          </div>
+      <div class="text-4xl font-extrabold font-headline text-on-surface mb-2">{{ stats.teams }}</div>
+      <div class="text-xs text-on-surface-variant">Across <span class="font-semibold text-on-surface">{{ stats.sports }}</span> sports</div>
+    </div>
+
+    <!-- Upcoming Events -->
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Upcoming Events</span>
+        <div class="w-9 h-9 rounded-xl bg-tertiary-fixed flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-tertiary-fixed-variant text-lg">calendar_today</span>
         </div>
       </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="subheader">Equipment Items</div>
-            <div class="h1 mb-3">{{ stats.equipment }}</div>
-            <div>{{ stats.unreturned }} currently issued</div>
-          </div>
+      <div class="text-4xl font-extrabold font-headline text-on-surface mb-2">{{ stats.upcoming_events }}</div>
+      <div class="text-xs text-on-surface-variant"><span class="font-semibold text-on-surface">{{ stats.ongoing_events }}</span> ongoing</div>
+    </div>
+
+    <!-- Equipment -->
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Equipment</span>
+        <div class="w-9 h-9 rounded-xl bg-surface-container-high flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-surface-variant text-lg">fitness_center</span>
+        </div>
+      </div>
+      <div class="text-4xl font-extrabold font-headline text-on-surface mb-2">{{ stats.equipment }}</div>
+      <div class="text-xs text-on-surface-variant"><span class="font-semibold text-on-surface">{{ stats.unreturned }}</span> currently issued</div>
+    </div>
+
+  </div>
+
+  <!-- Quick Command Center -->
+  {% if current_user.role in ("Admin", "Coach") %}
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6 mb-8">
+    <h3 class="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-4">Quick Command Center</h3>
+    <div class="flex flex-wrap gap-3">
+      {% if current_user.role == "Admin" %}
+      <a href="/ui/members/new"
+         class="inline-flex items-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+        <span class="material-symbols-outlined text-lg">person_add</span>
+        Add Member
+      </a>
+      {% endif %}
+      {% if current_user.role in ("Admin", "Coach") %}
+      <a href="/ui/teams/new"
+         class="inline-flex items-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+        <span class="material-symbols-outlined text-lg">group_add</span>
+        Create Team
+      </a>
+      {% endif %}
+      {% if current_user.role == "Admin" %}
+      <a href="/ui/tournaments/new"
+         class="inline-flex items-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+        <span class="material-symbols-outlined text-lg">emoji_events</span>
+        New Tournament
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tables Row -->
+  <div class="grid grid-cols-12 gap-6">
+
+    <!-- Events Table (8 cols) -->
+    <div class="col-span-12 lg:col-span-8">
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Upcoming &amp; Ongoing Events</h3>
+          <a href="/ui/events" class="text-secondary text-xs font-semibold hover:underline">View all</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Event</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Date</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Venue</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for ev in recent_events %}
+              <tr class="hover:bg-surface-container-low transition-colors group border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm">
+                  <a href="/ui/events/{{ ev.EventID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ ev.EventName }}</a>
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ ev.EventDate }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ ev.VenueName }}</td>
+                <td class="px-6 py-4 text-sm">
+                  {% if ev.Status == 'Ongoing' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ ev.Status }}</span>
+                  {% elif ev.Status == 'Scheduled' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ ev.Status }}</span>
+                  {% else %}
+                  <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ ev.Status }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="4" class="px-6 py-8 text-sm text-on-surface-variant text-center">No events</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
-    
-    <div class="row row-deck row-cards">
-      <div class="col-lg-7">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Upcoming &amp; Ongoing Events</h3>
-            <div class="card-options"><a href="/ui/events" class="btn btn-sm">View all</a></div>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Event</th><th>Date</th><th>Venue</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-              {% for ev in recent_events %}
-                <tr>
-                  <td><a href="/ui/events/{{ ev.EventID }}">{{ ev.EventName }}</a></td>
-                  <td class="text-muted">{{ ev.EventDate }}</td>
-                  <td class="text-muted">{{ ev.VenueName }}</td>
-                  <td>
-                    <span class="badge bg-{% if ev.Status == 'Ongoing' %}green{% elif ev.Status == 'Scheduled' %}blue{% else %}secondary{% endif %}-lt">
-                      {{ ev.Status }}
-                    </span>
-                  </td>
-                </tr>
-              {% else %}
-                <tr><td colspan="4" class="text-muted text-center">No events</td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
+    <!-- Tournaments Table (4 cols) -->
+    <div class="col-span-12 lg:col-span-4">
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Active Tournaments</h3>
         </div>
-      </div>
-
-      <div class="col-lg-5">
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Active Tournaments</h3>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Tournament</th><th>Status</th><th>End Date</th></tr>
-              </thead>
-              <tbody>
-              {% for t in tournaments %}
-                <tr>
-                  <td>{{ t.TournamentName }}</td>
-                  <td>
-                    <span class="badge bg-{% if t.Status == 'Ongoing' %}green{% elif t.Status == 'Upcoming' %}blue{% else %}secondary{% endif %}-lt">
-                      {{ t.Status }}
-                    </span>
-                  </td>
-                  <td class="text-muted">{{ t.EndDate }}</td>
-                </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Tournament</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Status</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">End Date</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for t in tournaments %}
+              <tr class="hover:bg-surface-container-low transition-colors group border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm font-medium text-on-surface">{{ t.TournamentName }}</td>
+                <td class="px-6 py-4 text-sm">
+                  {% if t.Status == 'Ongoing' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ t.Status }}</span>
+                  {% elif t.Status == 'Upcoming' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ t.Status }}</span>
+                  {% else %}
+                  <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ t.Status }}</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ t.EndDate }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3" class="px-6 py-8 text-sm text-on-surface-variant text-center">No tournaments</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

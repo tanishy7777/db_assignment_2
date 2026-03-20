@@ -5,148 +5,228 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
   <title>{% block title %}Olympia Track{% endblock %}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-tertiary-container": "#9779ff",
+            "tertiary": "#16004a",
+            "primary": "#04122e",
+            "surface-dim": "#cdd9ff",
+            "background": "#faf8ff",
+            "on-secondary-container": "#007150",
+            "on-primary-fixed-variant": "#3a4665",
+            "error": "#ba1a1a",
+            "secondary-fixed-dim": "#5ddcaa",
+            "surface-container": "#e9edff",
+            "tertiary-fixed-dim": "#ccbdff",
+            "primary-container": "#1a2744",
+            "surface-container-high": "#e1e8ff",
+            "outline-variant": "#c5c6ce",
+            "primary-fixed-dim": "#b9c6eb",
+            "on-primary-fixed": "#0d1b37",
+            "inverse-primary": "#b9c6eb",
+            "on-background": "#0d1b37",
+            "surface-tint": "#515e7e",
+            "surface-container-low": "#f2f3ff",
+            "on-error": "#ffffff",
+            "surface-bright": "#faf8ff",
+            "on-primary-container": "#828eb1",
+            "outline": "#75777e",
+            "on-secondary-fixed": "#002115",
+            "surface-variant": "#d9e2ff",
+            "inverse-on-surface": "#edf0ff",
+            "on-error-container": "#93000a",
+            "on-primary": "#ffffff",
+            "inverse-surface": "#23304d",
+            "on-tertiary": "#ffffff",
+            "on-secondary-fixed-variant": "#005139",
+            "primary-fixed": "#d9e2ff",
+            "on-secondary": "#ffffff",
+            "on-surface-variant": "#45464d",
+            "tertiary-container": "#2c0080",
+            "error-container": "#ffdad6",
+            "secondary-container": "#79f6c2",
+            "surface-container-highest": "#d9e2ff",
+            "tertiary-fixed": "#e7deff",
+            "on-tertiary-fixed": "#1f005f",
+            "on-tertiary-fixed-variant": "#4d17c5",
+            "secondary-fixed": "#7cf9c5",
+            "surface": "#faf8ff",
+            "secondary": "#006c4c",
+            "on-surface": "#0d1b37",
+            "surface-container-lowest": "#ffffff"
+          },
+          fontFamily: {
+            "headline": ["Manrope"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      vertical-align: middle;
+    }
+    body { font-family: 'Inter', sans-serif; zoom: 110%; }
+  </style>
 </head>
-<body class="antialiased">
-<div class="wrapper">
+<body class="bg-background text-on-surface antialiased">
 
-  
-  <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
-    <div class="container-fluid">
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <h1 class="navbar-brand navbar-brand-autodark">
-        <a href="/ui/dashboard">Olympia Track</a>
-      </h1>
+  <!-- Mobile overlay -->
+  <div id="sidebar-overlay"
+       class="fixed inset-0 bg-black/50 z-20 lg:hidden hidden"
+       onclick="closeSidebar()"></div>
 
-      <div class="collapse navbar-collapse" id="sidebar-menu">
-        <ul class="navbar-nav pt-lg-3">
+  <!-- Mobile top bar -->
+  <div class="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#1a2744] flex items-center gap-3 px-4 z-30">
+    <button onclick="toggleSidebar()"
+            class="text-slate-300 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+      <span class="material-symbols-outlined text-xl">menu</span>
+    </button>
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-md bg-[#0ca678] flex items-center justify-center flex-shrink-0">
+        <span class="text-white font-extrabold text-xs font-headline">OT</span>
+      </div>
+      <span class="text-white font-bold text-sm font-headline">Olympia Track</span>
+    </div>
+  </div>
 
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'dashboard' %}active{% endif %}" href="/ui/dashboard">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>
-                  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/></svg>
-              </span>
-              <span class="nav-link-title">Dashboard</span>
-            </a>
-          </li>
+  <!-- Sidebar -->
+  <aside id="sidebar"
+         class="fixed top-0 left-0 h-full w-64 bg-[#1a2744] flex flex-col z-30
+                transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+    <!-- Brand -->
+    <div class="flex items-center gap-3 px-5 py-5 border-b border-white/10">
+      <div class="w-9 h-9 rounded-lg bg-[#0ca678] flex items-center justify-center flex-shrink-0">
+        <span class="text-white font-extrabold text-sm font-headline">OT</span>
+      </div>
+      <div>
+        <div class="text-white font-bold text-sm font-headline leading-tight">Olympia Track</div>
+        <div class="text-slate-400 text-[10px] leading-tight">Elite Management</div>
+      </div>
+    </div>
 
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'members' %}active{% endif %}" href="/ui/members">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/></svg>
-              </span>
-              <span class="nav-link-title">Members</span>
-            </a>
-          </li>
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <a href="/ui/dashboard"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'dashboard' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">dashboard</span>
+        Dashboard
+      </a>
+      <a href="/ui/members"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'members' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">groups</span>
+        Members
+      </a>
+      <a href="/ui/teams"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'teams' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">group_work</span>
+        Teams
+      </a>
+      <a href="/ui/tournaments"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'tournaments' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">emoji_events</span>
+        Tournaments
+      </a>
+      <a href="/ui/events"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'events' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">calendar_today</span>
+        Events
+      </a>
+      <a href="/ui/equipment"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'equipment' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">fitness_center</span>
+        Equipment
+      </a>
+      {% if current_user.role == "Admin" %}
+      <a href="/ui/admin/audit"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all {% if active == 'audit' %}bg-[#0ca678] text-white{% else %}text-slate-400 hover:text-white hover:bg-white/10{% endif %}">
+        <span class="material-symbols-outlined text-xl">history_edu</span>
+        Audit Log
+      </a>
+      {% endif %}
+    </nav>
 
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'teams' %}active{% endif %}" href="/ui/teams">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <circle cx="7" cy="7" r="4"/><circle cx="17" cy="7" r="4"/>
-                  <path d="M1 21v-2a4 4 0 0 1 4 -4h4"/><path d="M15 21v-2a4 4 0 0 1 4 -4h4"/></svg>
-              </span>
-              <span class="nav-link-title">Teams</span>
-            </a>
-          </li>
-
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'tournaments' %}active{% endif %}" href="/ui/tournaments">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M8 21l8 0"/><path d="M12 17l0 4"/><path d="M7 4l10 0"/><path d="M17 4v8a5 5 0 0 1 -10 0v-8"/>
-                  <path d="M5 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M19 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/></svg>
-              </span>
-              <span class="nav-link-title">Tournaments</span>
-            </a>
-          </li>
-
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'events' %}active{% endif %}" href="/ui/events">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <rect x="4" y="5" width="16" height="16" rx="2"/>
-                  <line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/>
-                  <line x1="4" y1="11" x2="20" y2="11"/></svg>
-              </span>
-              <span class="nav-link-title">Events</span>
-            </a>
-          </li>
-
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'equipment' %}active{% endif %}" href="/ui/equipment">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M7 10h3v-3l-3.5 -3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1 -3 3l-6-6a6 6 0 0 1 -8 -8l3.5 3.5"/></svg>
-              </span>
-              <span class="nav-link-title">Equipment</span>
-            </a>
-          </li>
-
-          {% if current_user.role == "Admin" %}
-          <li class="nav-item">
-            <a class="nav-link {% if active == 'audit' %}active{% endif %}" href="/ui/admin/audit">
-              <span class="nav-link-icon d-md-none d-lg-inline-block">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                  <path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
-                  <line x1="9" y1="9" x2="10" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-              </span>
-              <span class="nav-link-title">Audit Log</span>
-            </a>
-          </li>
-          {% endif %}
-
-        </ul>
-
-        <div class="mt-auto pb-3">
-          <div class="nav-item dropdown">
-            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
-              <span class="avatar avatar-sm" style="background-color: #206bc4; color: white; font-weight: bold;">
-                {{ current_user.username[0].upper() }}
-              </span>
-              <div class="d-none d-xl-block ps-2">
-                <div>{{ current_user.username }}</div>
-                <div class="mt-1 small text-muted">{{ current_user.role }}</div>
-              </div>
-            </a>
-            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-              <a href="/ui/members/{{ current_user.member_id }}" class="dropdown-item">My Profile</a>
-              <div class="dropdown-divider"></div>
-              <a href="/auth/logout" class="dropdown-item text-danger">Logout</a>
-            </div>
-          </div>
+    <!-- User Footer -->
+    <div class="px-3 py-4 border-t border-white/10">
+      <div class="flex items-center gap-3 px-2 mb-2">
+        <div class="w-8 h-8 rounded-full bg-[#0ca678] flex items-center justify-center flex-shrink-0">
+          <span class="text-white font-bold text-sm">{{ current_user.username[0].upper() }}</span>
+        </div>
+        <div class="min-w-0">
+          <div class="text-white text-sm font-semibold truncate">{{ current_user.username }}</div>
+          <div class="text-slate-400 text-xs">{{ current_user.role }}</div>
         </div>
       </div>
+      <a href="/ui/members/{{ current_user.member_id }}"
+         class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-xs transition-all">
+        <span class="material-symbols-outlined text-base">person</span>
+        My Profile
+      </a>
+      <a href="/auth/logout"
+         class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 text-xs transition-all">
+        <span class="material-symbols-outlined text-base">logout</span>
+        Logout
+      </a>
     </div>
   </aside>
 
-  
-  <div class="page-wrapper">
+  <!-- Main Content -->
+  <main class="lg:ml-64 min-h-screen bg-background pt-14 lg:pt-0">
     {% if flash %}
-    <div class="container-xl pt-3">
-      <div class="alert alert-{{ flash.type }} alert-dismissible" role="alert">
-        {{ flash.message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="px-4 sm:px-8 pt-6">
+      {% if flash.type == 'success' %}
+      <div class="flex items-center gap-3 p-4 bg-secondary/10 rounded-xl border-l-4 border-secondary">
+        <span class="material-symbols-outlined text-secondary">check_circle</span>
+        <p class="text-sm font-medium text-on-surface">{{ flash.message }}</p>
       </div>
+      {% elif flash.type in ('error', 'danger') %}
+      <div class="flex items-center gap-3 p-4 bg-error-container rounded-xl border-l-4 border-error">
+        <span class="material-symbols-outlined text-error">error</span>
+        <p class="text-sm font-medium text-on-error-container">{{ flash.message }}</p>
+      </div>
+      {% elif flash.type == 'warning' %}
+      <div class="flex items-center gap-3 p-4 bg-yellow-50 rounded-xl border-l-4 border-yellow-400">
+        <span class="material-symbols-outlined text-yellow-600">warning</span>
+        <p class="text-sm font-medium text-yellow-800">{{ flash.message }}</p>
+      </div>
+      {% else %}
+      <div class="flex items-center gap-3 p-4 bg-primary-fixed rounded-xl border-l-4 border-primary">
+        <span class="material-symbols-outlined text-on-primary-fixed-variant">info</span>
+        <p class="text-sm font-medium text-on-surface">{{ flash.message }}</p>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
     {% block content %}{% endblock %}
-  </div>
+  </main>
 
-</div>
-<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
 {% block scripts %}{% endblock %}
+<script>
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('-translate-x-full');
+    overlay.classList.toggle('hidden');
+  }
+  function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+  }
+</script>
 </body>
 </html>

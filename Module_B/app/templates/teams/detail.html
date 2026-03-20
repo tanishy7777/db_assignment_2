@@ -1,102 +1,163 @@
 {% extends "base.html" %}
 {% block title %}{{ team.TeamName }} — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col-auto"><a href="/ui/teams" class="btn btn-outline-secondary btn-sm">Back</a></div>
-      <div class="col"><h2 class="page-title">{{ team.TeamName }}</h2></div>
-      {% if current_user.role == "Admin" or (current_user.role == "Coach" and team.CoachID == current_user.member_id) %}
-      <div class="col-auto">
-        <a href="/ui/teams/{{ team.TeamID }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
-      </div>
-      {% endif %}
-      {% if current_user.role == "Admin" or (current_user.role == "Coach" and team.CoachID == current_user.member_id) %}
-      <div class="col-auto">
-        <form action="/ui/teams/{{ team.TeamID }}/delete" method="post"
-              onsubmit="return confirm('Delete this team and all its members?')">
-          <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
 
-<div class="page-body">
-  <div class="container-xl">
-    <div class="row row-cards">
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-body">
-            <h3 class="card-title">Team Info</h3>
-            <dl class="row">
-              <dt class="col-5 text-muted">Sport</dt>       <dd class="col-7">{{ team.SportName }}</dd>
-              <dt class="col-5 text-muted">Coach</dt>       <dd class="col-7">{{ team.CoachName or '—' }}</dd>
-              <dt class="col-5 text-muted">Formed</dt>      <dd class="col-7">{{ team.FormedDate }}</dd>
-              <dt class="col-5 text-muted">Members</dt>     <dd class="col-7">{{ roster | length }}</dd>
-            </dl>
+  <!-- Back -->
+  <a href="/ui/teams" class="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back to Teams
+  </a>
+
+  <!-- Page Title -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Team</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">{{ team.TeamName }}</h2>
+    </div>
+    {% if current_user.role == "Admin" or (current_user.role == "Coach" and team.CoachID == current_user.member_id) %}
+    <div class="flex items-center gap-3">
+      <a href="/ui/teams/{{ team.TeamID }}/edit"
+         class="bg-surface-container-lowest border border-outline-variant/30 text-on-surface px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
+        Edit
+      </a>
+      <form action="/ui/teams/{{ team.TeamID }}/delete" method="post"
+            onsubmit="return confirm('Delete this team and all its members?')">
+        <button type="submit"
+                class="bg-error hover:opacity-90 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all">
+          Delete
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+    <!-- Team Info -->
+    <div class="md:col-span-4">
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+        <h3 class="font-bold text-on-surface mb-4">Team Info</h3>
+        <dl class="space-y-3">
+          <div class="flex justify-between items-center">
+            <dt class="text-sm text-on-surface-variant">Sport</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ team.SportName }}</dd>
           </div>
+          <div class="flex justify-between items-center">
+            <dt class="text-sm text-on-surface-variant">Coach</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ team.CoachName or '—' }}</dd>
+          </div>
+          <div class="flex justify-between items-center">
+            <dt class="text-sm text-on-surface-variant">Formed</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ team.FormedDate }}</dd>
+          </div>
+          <div class="flex justify-between items-center">
+            <dt class="text-sm text-on-surface-variant">Members</dt>
+            <dd class="text-sm font-semibold text-on-surface">{{ roster | length }}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <!-- Roster + Events -->
+    <div class="md:col-span-8 space-y-6">
+
+      <!-- Roster -->
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Roster</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Name</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Role</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Position</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Captain</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for r in roster %}
+              <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm">
+                  {% if current_user.role in ("Admin", "Coach") or current_user.member_id == r.MemberID %}
+                  <a href="/ui/members/{{ r.MemberID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ r.Name }}</a>
+                  {% else %}
+                  <span class="font-medium text-on-surface">{{ r.Name }}</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm">
+                  {% if r.Role == 'Coach' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ r.Role }}</span>
+                  {% else %}
+                  <span class="px-2.5 py-1 rounded-lg bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ r.Role }}</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ r.Position or '—' }}</td>
+                <td class="px-6 py-4 text-sm">
+                  {% if r.IsCaptain %}
+                  <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">Yes</span>
+                  {% else %}
+                  <span class="text-on-surface-variant">—</span>
+                  {% endif %}
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ r.JoinDate }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="col-md-8">
-        <div class="card">
-          <div class="card-header"><h3 class="card-title">Roster</h3></div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Name</th><th>Role</th><th>Position</th><th>Captain</th><th>Joined</th></tr>
-              </thead>
-              <tbody>
-              {% for r in roster %}
-                <tr>
-                  <td>
-                    {% if current_user.role in ("Admin", "Coach") or current_user.member_id == r.MemberID %}
-                    <a href="/ui/members/{{ r.MemberID }}">{{ r.Name }}</a>
-                    {% else %}
-                    {{ r.Name }}
-                    {% endif %}
-                  </td>
-                  <td>
-                    <span class="badge bg-{% if r.Role == 'Coach' %}orange{% else %}blue{% endif %}-lt">{{ r.Role }}</span>
-                  </td>
-                  <td class="text-muted">{{ r.Position or '—' }}</td>
-                  <td>{% if r.IsCaptain %}<span class="badge bg-yellow">Yes</span>{% else %}—{% endif %}</td>
-                  <td class="text-muted">{{ r.JoinDate }}</td>
-                </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
+
+      <!-- Events -->
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Events</h3>
         </div>
-        <div class="card mt-3">
-          <div class="card-header"><h3 class="card-title">Events</h3></div>
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Event</th><th>Date</th><th>Time</th><th>Tournament</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-              {% for event in events %}
-                <tr>
-                  <td><a href="/ui/events/{{ event.EventID }}">{{ event.EventName }}</a></td>
-                  <td class="text-muted">{{ event.EventDate }}</td>
-                  <td class="text-muted">{{ event.StartTime }} - {{ event.EndTime }}</td>
-                  <td class="text-muted">{{ event.TournamentName or 'Standalone' }}</td>
-                  <td>
-                    <span class="badge bg-{% if event.Status == 'Ongoing' %}green{% elif event.Status == 'Scheduled' %}blue{% elif event.Status == 'Cancelled' %}red{% else %}secondary{% endif %}-lt">
-                      {{ event.Status }}
-                    </span>
-                  </td>
-                </tr>
-              {% else %}
-                <tr><td colspan="5" class="text-muted text-center">This team is not part of any events yet.</td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Event</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Date</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Time</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Tournament</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for event in events %}
+              <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm">
+                  <a href="/ui/events/{{ event.EventID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ event.EventName }}</a>
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ event.EventDate }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ event.StartTime }} - {{ event.EndTime }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ event.TournamentName or 'Standalone' }}</td>
+                <td class="px-6 py-4 text-sm">
+                  {% if event.Status == 'Ongoing' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+                  {% elif event.Status == 'Scheduled' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+                  {% elif event.Status == 'Cancelled' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+                  {% else %}
+                  <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ event.Status }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="5" class="px-6 py-8 text-sm text-on-surface-variant text-center">This team is not part of any events yet.</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
+
     </div>
   </div>
 </div>

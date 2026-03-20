@@ -1,249 +1,306 @@
 {% extends "base.html" %}
 {% block title %}{{ member.Name }} — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col-auto">
-        <a href="/ui/members" class="btn btn-outline-secondary btn-sm">Back</a>
-      </div>
-      <div class="col">
-        <h2 class="page-title">Member Portfolio</h2>
-      </div>
-      {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
-      <div class="col-auto">
-        <a href="/ui/members/{{ member.MemberID }}/edit" class="btn btn-primary btn-sm">Edit</a>
-      </div>
-      {% endif %}
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
+
+  <!-- Back -->
+  <a href="/ui/members" class="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back to Members
+  </a>
+
+  <!-- Page Title -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Member Portfolio</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">{{ member.Name }}</h2>
     </div>
+    {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
+    <a href="/ui/members/{{ member.MemberID }}/edit"
+       class="bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+      Edit
+    </a>
+    {% endif %}
   </div>
-</div>
 
-<div class="page-body">
-  <div class="container-xl">
-    <div class="row row-cards">
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
 
-      
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-body text-center">
-            <span class="avatar avatar-xl mb-3"
-                  style="background-color:#206bc4;color:white;font-size:2rem;font-weight:bold;">
-              {{ member.Name[0] }}
-            </span>
-            <h3 class="mb-1">{{ member.Name }}</h3>
-            <div class="text-muted mb-2">{{ member.Email }}</div>
-            <span class="badge bg-{% if member.Role == 'Admin' %}red{% elif member.Role == 'Coach' %}orange{% else %}blue{% endif %} mb-3">
-              {{ member.Role }}
-            </span>
-            <div class="row g-2 mt-2">
-              <div class="col-6">
-                <div class="text-muted small">Age</div>
-                <div class="fw-bold">{{ member.Age }}</div>
-              </div>
-              <div class="col-6">
-                <div class="text-muted small">Gender</div>
-                <div class="fw-bold">{{ member.Gender }}</div>
-              </div>
-              <div class="col-12">
-                <div class="text-muted small">Contact</div>
-                <div class="fw-bold">{{ member.ContactNumber }}</div>
-              </div>
-              <div class="col-12">
-                <div class="text-muted small">Joined</div>
-                <div class="fw-bold">{{ member.JoinDate }}</div>
-              </div>
-            </div>
-          </div>
+    <!-- Left column: Profile + Teams -->
+    <div class="md:col-span-4 space-y-6">
+
+      <!-- Profile Card -->
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6 text-center">
+        <div class="w-20 h-20 rounded-full bg-[#0ca678] flex items-center justify-center mx-auto mb-4">
+          <span class="text-white font-extrabold text-3xl font-headline">{{ member.Name[0] }}</span>
         </div>
+        <h3 class="text-lg font-bold text-on-surface mb-1">{{ member.Name }}</h3>
+        <p class="text-sm text-on-surface-variant mb-3">{{ member.Email }}</p>
+        {% if member.Role == 'Admin' %}
+        <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ member.Role }}</span>
+        {% elif member.Role == 'Coach' %}
+        <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ member.Role }}</span>
+        {% else %}
+        <span class="px-2.5 py-1 rounded-lg bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ member.Role }}</span>
+        {% endif %}
 
-        
-        <div class="card mt-3">
-          <div class="card-header"><h3 class="card-title">Teams</h3></div>
-          <div class="list-group list-group-flush">
-            {% for t in teams %}
-            <div class="list-group-item">
-              <div class="row align-items-center">
-                <div class="col">
-                  <a href="/ui/teams/{{ t.TeamID }}">{{ t.TeamName }}</a>
-                  <div class="text-muted small">{{ t.SportName }} &mdash; {{ t.Position or 'N/A' }}</div>
-                </div>
-                {% if t.IsCaptain %}
-                <div class="col-auto">
-                  <span class="badge bg-yellow-lt">Captain</span>
-                </div>
-                {% endif %}
-              </div>
-            </div>
-            {% else %}
-            <div class="list-group-item text-muted">No teams</div>
-            {% endfor %}
+        <div class="grid grid-cols-2 gap-3 mt-5 text-left">
+          <div>
+            <div class="text-xs text-on-surface-variant mb-0.5">Age</div>
+            <div class="text-sm font-semibold text-on-surface">{{ member.Age }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-on-surface-variant mb-0.5">Gender</div>
+            <div class="text-sm font-semibold text-on-surface">{{ member.Gender }}</div>
+          </div>
+          <div class="col-span-2">
+            <div class="text-xs text-on-surface-variant mb-0.5">Contact</div>
+            <div class="text-sm font-semibold text-on-surface">{{ member.ContactNumber }}</div>
+          </div>
+          <div class="col-span-2">
+            <div class="text-xs text-on-surface-variant mb-0.5">Joined</div>
+            <div class="text-sm font-semibold text-on-surface">{{ member.JoinDate }}</div>
           </div>
         </div>
       </div>
 
-      
-      <div class="col-md-8">
-
-        
-        <div class="card mb-3">
-          <div class="card-header">
-            <h3 class="card-title">Performance History</h3>
-            <div class="card-options text-muted small">{{ performance | length }} records</div>
-          </div>
-          {% if current_user.role in ("Admin", "Coach") %}
-          <div class="card-body border-bottom">
-            <form method="post" action="/ui/performance-logs/new" class="row g-2 align-items-end">
-              <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
-              <div class="col-md-3">
-                <label class="form-label form-label-sm">Sport</label>
-                <select name="sport_id" class="form-select form-select-sm" required>
-                  {% for s in sports %}
-                  <option value="{{ s.SportID }}">{{ s.SportName }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label form-label-sm">Metric</label>
-                <input type="text" name="metric_name" class="form-control form-control-sm" required placeholder="e.g. Speed (m/s)"/>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label form-label-sm">Value</label>
-                <input type="number" step="0.01" name="metric_value" class="form-control form-control-sm" required/>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label form-label-sm">Date</label>
-                <input type="date" name="record_date" class="form-control form-control-sm" required/>
-              </div>
-              <div class="col-md-2">
-                <button type="submit" class="btn btn-sm btn-primary w-100">Add Log</button>
-              </div>
-            </form>
-          </div>
-          {% endif %}
-          {% if performance %}
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Date</th><th>Sport</th><th>Metric</th><th>Value</th>
-                  {% if current_user.role in ("Admin", "Coach") %}<th></th>{% endif %}
-                </tr>
-              </thead>
-              <tbody>
-              {% for log in performance %}
-                <tr>
-                  <td class="text-muted">{{ log.RecordDate }}</td>
-                  <td>{{ log.SportName }}</td>
-                  <td>{{ log.MetricName }}</td>
-                  <td><strong>{{ log.MetricValue }}</strong></td>
-                  {% if current_user.role in ("Admin", "Coach") %}
-                  <td class="text-end">
-                    <div class="d-flex gap-1 justify-content-end">
-                      <a href="/ui/performance-logs/{{ log.LogID }}/edit" class="btn btn-xs btn-outline-primary">Edit</a>
-                      <form method="post" action="/ui/performance-logs/{{ log.LogID }}/delete"
-                            onsubmit="return confirm('Delete this log entry?')">
-                        <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
-                        <button type="submit" class="btn btn-xs btn-outline-danger">Del</button>
-                      </form>
-                    </div>
-                  </td>
-                  {% endif %}
-                </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <div class="card-body text-muted">
-            {% if current_user.role == "Player" and current_user.member_id != member.MemberID %}
-              Access restricted.
-            {% else %}
-              No performance records.
+      <!-- Teams Card -->
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20">
+          <h3 class="font-bold text-on-surface">Teams</h3>
+        </div>
+        <div class="divide-y divide-outline-variant/10">
+          {% for t in teams %}
+          <div class="px-6 py-3 flex items-center justify-between">
+            <div>
+              <a href="/ui/teams/{{ t.TeamID }}" class="text-sm font-medium text-on-surface hover:text-secondary transition-colors">{{ t.TeamName }}</a>
+              <div class="text-xs text-on-surface-variant">{{ t.SportName }} &mdash; {{ t.Position or 'N/A' }}</div>
+            </div>
+            {% if t.IsCaptain %}
+            <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">Captain</span>
             {% endif %}
           </div>
-          {% endif %}
+          {% else %}
+          <div class="px-6 py-4 text-sm text-on-surface-variant">No teams</div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column: Performance + Medical -->
+    <div class="md:col-span-8 space-y-6">
+
+      <!-- Performance History -->
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+          <h3 class="font-bold text-on-surface">Performance History</h3>
+          <span class="text-xs text-on-surface-variant">{{ performance | length }} records</span>
         </div>
 
-        
-        {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title">Medical Records</h3>
-            <div class="card-options"><span class="badge bg-red-lt">Confidential</span></div>
-          </div>
-          {% if current_user.role == "Admin" %}
-          <div class="card-body border-bottom">
-            <form method="post" action="/ui/medical-records/new" class="row g-2 align-items-end">
-              <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
-              <div class="col-md-4">
-                <label class="form-label form-label-sm">Condition</label>
-                <input type="text" name="medical_condition" class="form-control form-control-sm" required/>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label form-label-sm">Diagnosed</label>
-                <input type="date" name="diagnosis_date" class="form-control form-control-sm" required/>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label form-label-sm">Recovery <span class="text-muted">(opt.)</span></label>
-                <input type="date" name="recovery_date" class="form-control form-control-sm"/>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label form-label-sm">Status</label>
-                <select name="status" class="form-select form-select-sm" required>
-                  <option value="Active">Active</option>
-                  <option value="Recovered">Recovered</option>
-                  <option value="Chronic">Chronic</option>
-                </select>
-              </div>
-              <div class="col-md-2">
-                <button type="submit" class="btn btn-sm btn-danger w-100">Add Record</button>
-              </div>
-            </form>
-          </div>
-          {% endif %}
-          {% if medical %}
-          <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-              <thead>
-                <tr><th>Condition</th><th>Diagnosed</th><th>Recovery</th><th>Status</th>
-                  {% if current_user.role == "Admin" %}<th></th>{% endif %}
-                </tr>
-              </thead>
-              <tbody>
-              {% for rec in medical %}
-                <tr>
-                  <td>{{ rec.MedicalCondition }}</td>
-                  <td class="text-muted">{{ rec.DiagnosisDate }}</td>
-                  <td class="text-muted">{{ rec.RecoveryDate or '—' }}</td>
-                  <td>
-                    <span class="badge bg-{% if rec.Status == 'Active' %}red{% elif rec.Status == 'Recovered' %}green{% else %}yellow{% endif %}-lt">
-                      {{ rec.Status }}
-                    </span>
-                  </td>
-                  {% if current_user.role == "Admin" %}
-                  <td class="text-end">
-                    <div class="d-flex gap-1 justify-content-end">
-                      <a href="/ui/medical-records/{{ rec.RecordID }}/edit" class="btn btn-xs btn-outline-primary">Edit</a>
-                      <form method="post" action="/ui/medical-records/{{ rec.RecordID }}/delete"
-                            onsubmit="return confirm('Delete this medical record?')">
-                        <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
-                        <button type="submit" class="btn btn-xs btn-outline-danger">Del</button>
-                      </form>
-                    </div>
-                  </td>
-                  {% endif %}
-                </tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <div class="card-body text-muted">No medical records.</div>
-          {% endif %}
+        {% if current_user.role in ("Admin", "Coach") %}
+        <div class="px-6 py-4 border-b border-outline-variant/20 bg-surface-container-low/30">
+          <form method="post" action="/ui/performance-logs/new" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Sport</label>
+              <select name="sport_id"
+                      class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                      required>
+                {% for s in sports %}
+                <option value="{{ s.SportID }}">{{ s.SportName }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Metric</label>
+              <input type="text" name="metric_name"
+                     class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                     required placeholder="e.g. Speed (m/s)"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Value</label>
+              <input type="number" step="0.01" name="metric_value"
+                     class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                     required/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Date</label>
+              <input type="date" name="record_date"
+                     class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                     required/>
+            </div>
+            <div>
+              <button type="submit"
+                      class="w-full bg-primary hover:bg-primary-container text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all">
+                Add Log
+              </button>
+            </div>
+          </form>
         </div>
         {% endif %}
 
+        {% if performance %}
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Date</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Sport</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Metric</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Value</th>
+                {% if current_user.role in ("Admin", "Coach") %}
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+            {% for log in performance %}
+              <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ log.RecordDate }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface">{{ log.SportName }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface">{{ log.MetricName }}</td>
+                <td class="px-6 py-4 text-sm font-bold text-on-surface">{{ log.MetricValue }}</td>
+                {% if current_user.role in ("Admin", "Coach") %}
+                <td class="px-6 py-4 text-sm">
+                  <div class="flex items-center justify-end gap-1">
+                    <a href="/ui/performance-logs/{{ log.LogID }}/edit"
+                       class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all">
+                      <span class="material-symbols-outlined text-base">edit</span>
+                    </a>
+                    <form method="post" action="/ui/performance-logs/{{ log.LogID }}/delete"
+                          onsubmit="return confirm('Delete this log entry?')" class="inline">
+                      <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
+                      <button type="submit"
+                              class="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded-lg transition-all">
+                        <span class="material-symbols-outlined text-base">delete</span>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-8 text-sm text-on-surface-variant text-center">
+          {% if current_user.role == "Player" and current_user.member_id != member.MemberID %}
+            Access restricted.
+          {% else %}
+            No performance records.
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
+
+      <!-- Medical Records -->
+      {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
+      <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+          <h3 class="font-bold text-on-surface">Medical Records</h3>
+          <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">Confidential</span>
+        </div>
+
+        {% if current_user.role == "Admin" %}
+        <div class="px-6 py-4 border-b border-outline-variant/20 bg-surface-container-low/30">
+          <form method="post" action="/ui/medical-records/new" class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Condition</label>
+              <input type="text" name="medical_condition"
+                     class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                     required/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Diagnosed</label>
+              <input type="date" name="diagnosis_date"
+                     class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                     required/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Recovery <span class="text-on-surface-variant font-normal">(opt.)</span></label>
+              <input type="date" name="recovery_date"
+                     class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Status</label>
+              <select name="status"
+                      class="w-full bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                      required>
+                <option value="Active">Active</option>
+                <option value="Recovered">Recovered</option>
+                <option value="Chronic">Chronic</option>
+              </select>
+            </div>
+            <div>
+              <button type="submit"
+                      class="w-full bg-error hover:opacity-90 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all">
+                Add Record
+              </button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+
+        {% if medical %}
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="bg-surface-container-low/50">
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Condition</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Diagnosed</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Recovery</th>
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Status</th>
+                {% if current_user.role == "Admin" %}
+                <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+            {% for rec in medical %}
+              <tr class="hover:bg-surface-container-low transition-colors border-t border-outline-variant/10">
+                <td class="px-6 py-4 text-sm font-medium text-on-surface">{{ rec.MedicalCondition }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ rec.DiagnosisDate }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ rec.RecoveryDate or '—' }}</td>
+                <td class="px-6 py-4 text-sm">
+                  {% if rec.Status == 'Active' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ rec.Status }}</span>
+                  {% elif rec.Status == 'Recovered' %}
+                  <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ rec.Status }}</span>
+                  {% else %}
+                  <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ rec.Status }}</span>
+                  {% endif %}
+                </td>
+                {% if current_user.role == "Admin" %}
+                <td class="px-6 py-4 text-sm">
+                  <div class="flex items-center justify-end gap-1">
+                    <a href="/ui/medical-records/{{ rec.RecordID }}/edit"
+                       class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all">
+                      <span class="material-symbols-outlined text-base">edit</span>
+                    </a>
+                    <form method="post" action="/ui/medical-records/{{ rec.RecordID }}/delete"
+                          onsubmit="return confirm('Delete this medical record?')" class="inline">
+                      <input type="hidden" name="member_id" value="{{ member.MemberID }}"/>
+                      <button type="submit"
+                              class="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded-lg transition-all">
+                        <span class="material-symbols-outlined text-base">delete</span>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-8 text-sm text-on-surface-variant text-center">No medical records.</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
     </div>
   </div>
 </div>

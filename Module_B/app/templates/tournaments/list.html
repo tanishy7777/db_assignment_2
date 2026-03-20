@@ -1,76 +1,110 @@
 {% extends "base.html" %}
 {% block title %}Tournaments — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col"><h2 class="page-title">Tournaments</h2></div>
-      {% if current_user.role == "Admin" %}
-      <div class="col-auto">
-        <a href="/ui/tournaments/new" class="btn btn-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-               stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Tournament
-        </a>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
 
-<div class="page-body">
-  <div class="container-xl">
-    <div class="card">
-      <div class="card-header">
-        <div class="input-group">
-          <select id="filter-attribute" class="form-select">
-            <option value="all">All attributes</option>
-            <option value="name">Name</option>
-            <option value="start">Start Date</option>
-            <option value="end">End Date</option>
-            <option value="status">Status</option>
-            <option value="description">Description</option>
-          </select>
-          <input id="search" type="text" class="form-control" placeholder="Enter value to filter..."/>
-        </div>
+  <!-- Page Title -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Competition</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Tournaments</h2>
+    </div>
+    {% if current_user.role == "Admin" %}
+    <a href="/ui/tournaments/new"
+       class="inline-flex items-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+      <span class="material-symbols-outlined text-lg">emoji_events</span>
+      New Tournament
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Card -->
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+    <!-- Filter Bar -->
+    <div class="px-6 py-4 border-b border-outline-variant/20 flex gap-3">
+      <select id="filter-attribute"
+              class="bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200">
+        <option value="all">All attributes</option>
+        <option value="name">Name</option>
+        <option value="start">Start Date</option>
+        <option value="end">End Date</option>
+        <option value="status">Status</option>
+        <option value="description">Description</option>
+      </select>
+      <div class="relative flex-1 max-w-sm">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+        <input id="search" type="text"
+               class="w-full bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+               placeholder="Enter value to filter..."/>
       </div>
-      <div class="table-responsive">
-        <table class="table table-vcenter table-hover card-table" id="tournaments-table">
-          <thead>
-            <tr><th>Name</th><th>Start</th><th>End</th><th>Status</th><th>Description</th><th></th></tr>
-          </thead>
-          <tbody>
-          {% for t in tournaments %}
-            <tr>
-              <td><a href="/ui/tournaments/{{ t.TournamentID }}">{{ t.TournamentName }}</a></td>
-              <td class="text-muted">{{ t.StartDate }}</td>
-              <td class="text-muted">{{ t.EndDate }}</td>
-              <td>
-                <span class="badge bg-{% if t.Status == 'Ongoing' %}green{% elif t.Status == 'Upcoming' %}blue{% else %}secondary{% endif %}-lt">
-                  {{ t.Status }}
-                </span>
-              </td>
-              <td class="text-muted">{{ t.Description or '—' }}</td>
-              <td class="text-end">
-                <a href="/ui/tournaments/{{ t.TournamentID }}" class="btn btn-sm btn-outline-primary">View</a>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full" id="tournaments-table">
+        <thead>
+          <tr class="bg-surface-container-low/50">
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Name</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Start</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">End</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Status</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Description</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for t in tournaments %}
+          <tr class="hover:bg-surface-container-low transition-colors group border-t border-outline-variant/10">
+            <td class="px-6 py-4 text-sm">
+              <a href="/ui/tournaments/{{ t.TournamentID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ t.TournamentName }}</a>
+            </td>
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ t.StartDate }}</td>
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ t.EndDate }}</td>
+            <td class="px-6 py-4 text-sm">
+              {% if t.Status == 'Ongoing' %}
+              <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ t.Status }}</span>
+              {% elif t.Status == 'Upcoming' %}
+              <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ t.Status }}</span>
+              {% else %}
+              <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ t.Status }}</span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ t.Description or '—' }}</td>
+            <td class="px-6 py-4 text-sm">
+              <div class="flex items-center justify-end gap-1">
+                <a href="/ui/tournaments/{{ t.TournamentID }}"
+                   class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all"
+                   title="View">
+                  <span class="material-symbols-outlined text-base">visibility</span>
+                </a>
                 {% if current_user.role == "Admin" %}
-                <a href="/ui/tournaments/{{ t.TournamentID }}/edit-form" class="btn btn-sm btn-outline-secondary">Edit</a>
-                <form action="/ui/tournaments/{{ t.TournamentID }}/delete" method="post" class="d-inline"
+                <a href="/ui/tournaments/{{ t.TournamentID }}/edit-form"
+                   class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all"
+                   title="Edit">
+                  <span class="material-symbols-outlined text-base">edit</span>
+                </a>
+                <form action="/ui/tournaments/{{ t.TournamentID }}/delete" method="post" class="inline"
                       onsubmit="return confirm('Delete {{ t.TournamentName }}?')">
-                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                  <button type="submit"
+                          class="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded-lg transition-all"
+                          title="Delete">
+                    <span class="material-symbols-outlined text-base">delete</span>
+                  </button>
                 </form>
                 {% endif %}
-              </td>
-            </tr>
-          {% else %}
-            <tr><td colspan="6" class="text-muted text-center">No tournaments yet.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6" class="px-6 py-8 text-sm text-on-surface-variant text-center">No tournaments yet.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
+
 </div>
 {% endblock %}
 {% block scripts %}

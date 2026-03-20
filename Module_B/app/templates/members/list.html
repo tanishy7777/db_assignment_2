@@ -1,113 +1,132 @@
 {% extends "base.html" %}
 {% block title %}Members — Olympia Track{% endblock %}
 {% block content %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <h2 class="page-title">Members</h2>
-      </div>
-      {% if current_user.role == "Admin" %}
-      <div class="col-auto ms-auto">
-        <a href="/ui/members/new" class="btn btn-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
-               stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Member
-        </a>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
 
-<div class="page-body">
-  <div class="container-xl">
-    <div class="card">
-      <div class="card-header">
-        <div class="input-group">
-          <select id="filter-attribute" class="form-select">
-            <option value="all">All attributes</option>
-            <option value="id">ID</option>
-            <option value="name">Name</option>
-            {% if current_user.role == "Admin" %}
-            <option value="age">Age</option>
-            {% endif %}
-            <option value="role">Role</option>
-            {% if current_user.role == "Admin" %}
-            <option value="email">Email</option>
-            {% endif %}
-            <option value="gender">Gender</option>
-            <option value="join_date">Join Date</option>
-          </select>
-          <input id="search" type="text" class="form-control" placeholder="Enter value to filter..."/>
-        </div>
+  <!-- Page Title -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Directory</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Members</h2>
+    </div>
+    {% if current_user.role == "Admin" %}
+    <a href="/ui/members/new"
+       class="inline-flex items-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+      <span class="material-symbols-outlined text-lg">person_add</span>
+      Add Member
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Card -->
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+    <!-- Filter Bar -->
+    <div class="px-6 py-4 border-b border-outline-variant/20 flex gap-3">
+      <select id="filter-attribute"
+              class="bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200">
+        <option value="all">All attributes</option>
+        <option value="id">ID</option>
+        <option value="name">Name</option>
+        {% if current_user.role == "Admin" %}
+        <option value="age">Age</option>
+        {% endif %}
+        <option value="role">Role</option>
+        {% if current_user.role == "Admin" %}
+        <option value="email">Email</option>
+        {% endif %}
+        <option value="gender">Gender</option>
+        <option value="join_date">Join Date</option>
+      </select>
+      <div class="relative flex-1 max-w-sm">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+        <input id="search" type="text"
+               class="w-full bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+               placeholder="Enter value to filter..."/>
       </div>
-      <div class="table-responsive">
-        <table class="table table-vcenter table-hover card-table" id="members-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              {% if current_user.role == "Admin" %}
-              <th>Age</th>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full" id="members-table">
+        <thead>
+          <tr class="bg-surface-container-low/50">
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">ID</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Name</th>
+            {% if current_user.role == "Admin" %}
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Age</th>
+            {% endif %}
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Role</th>
+            {% if current_user.role == "Admin" %}
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Email</th>
+            {% endif %}
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Gender</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Join Date</th>
+            <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for m in members %}
+          <tr class="hover:bg-surface-container-low transition-colors group border-t border-outline-variant/10">
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ m.MemberID }}</td>
+            <td class="px-6 py-4 text-sm">
+              {% if current_user.role in ("Admin", "Coach") or current_user.member_id == m.MemberID %}
+              <a href="/ui/members/{{ m.MemberID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ m.Name }}</a>
+              {% else %}
+              <span class="font-medium text-on-surface">{{ m.Name }}</span>
               {% endif %}
-              <th>Role</th>
-              {% if current_user.role == "Admin" %}
-              <th>Email</th>
+            </td>
+            {% if current_user.role == "Admin" %}
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ m.Age }}</td>
+            {% endif %}
+            <td class="px-6 py-4 text-sm">
+              {% if m.Role == 'Admin' %}
+              <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ m.Role }}</span>
+              {% elif m.Role == 'Coach' %}
+              <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ m.Role }}</span>
+              {% else %}
+              <span class="px-2.5 py-1 rounded-lg bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ m.Role }}</span>
               {% endif %}
-              <th>Gender</th>
-              <th>Join Date</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for m in members %}
-            <tr>
-              <td class="text-muted">{{ m.MemberID }}</td>
-              <td>
-                <div class="d-flex align-items-center">
-                  {% if current_user.role in ("Admin", "Coach") or current_user.member_id == m.MemberID %}
-                  <a href="/ui/members/{{ m.MemberID }}">{{ m.Name }}</a>
-                  {% else %}
-                  {{ m.Name }}
-                  {% endif %}
-                </div>
-              </td>
-              {% if current_user.role == "Admin" %}
-              <td class="text-muted">{{ m.Age }}</td>
-              {% endif %}
-              <td>
-                <span class="badge bg-{% if m.Role == 'Admin' %}red{% elif m.Role == 'Coach' %}orange{% else %}blue{% endif %}-lt">
-                  {{ m.Role }}
-                </span>
-              </td>
-              {% if current_user.role == "Admin" %}
-              <td class="text-muted">{{ m.Email }}</td>
-              {% endif %}
-              <td class="text-muted">{{ m.Gender }}</td>
-              <td class="text-muted">{{ m.JoinDate }}</td>
-              <td class="text-end">
+            </td>
+            {% if current_user.role == "Admin" %}
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ m.Email }}</td>
+            {% endif %}
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ m.Gender }}</td>
+            <td class="px-6 py-4 text-sm text-on-surface-variant">{{ m.JoinDate }}</td>
+            <td class="px-6 py-4 text-sm">
+              <div class="flex items-center justify-end gap-1">
                 {% if current_user.role in ("Admin", "Coach") or current_user.member_id == m.MemberID %}
-                <a href="/ui/members/{{ m.MemberID }}" class="btn btn-sm btn-outline-primary">View</a>
+                <a href="/ui/members/{{ m.MemberID }}"
+                   class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all"
+                   title="View">
+                  <span class="material-symbols-outlined text-base">visibility</span>
+                </a>
                 {% endif %}
                 {% if current_user.role == "Admin" or current_user.member_id == m.MemberID %}
-                <a href="/ui/members/{{ m.MemberID }}/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
+                <a href="/ui/members/{{ m.MemberID }}/edit"
+                   class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all"
+                   title="Edit">
+                  <span class="material-symbols-outlined text-base">edit</span>
+                </a>
                 {% endif %}
                 {% if current_user.role == "Admin" %}
-                <form action="/ui/members/{{ m.MemberID }}/delete" method="post" class="d-inline"
+                <form action="/ui/members/{{ m.MemberID }}/delete" method="post" class="inline"
                       onsubmit="return confirm('Delete {{ m.Name }}?')">
-                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                  <button type="submit"
+                          class="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded-lg transition-all"
+                          title="Delete">
+                    <span class="material-symbols-outlined text-base">delete</span>
+                  </button>
                 </form>
                 {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
+
 </div>
 {% endblock %}
 {% block scripts %}
