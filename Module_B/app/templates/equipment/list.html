@@ -1,23 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Equipment — Olympia Track{% endblock %}
+{% block title %}Equipment - Olympia Track{% endblock %}
 {% block content %}
 <div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
 
-  <!-- Page Title -->
-  <div class="mb-8">
-    <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Inventory</span>
-    <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Equipment</h2>
+  <div class="mb-8 flex items-center justify-between gap-4">
+    <div>
+      <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Inventory</span>
+      <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Equipment</h2>
+    </div>
+    {% if current_user.role == "Admin" %}
+    <a href="/ui/equipment/new"
+       class="inline-flex items-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+      <span class="material-symbols-outlined text-lg">add_circle</span>
+      Add Inventory Item
+    </a>
+    {% endif %}
   </div>
 
   <div class="space-y-6">
 
-    <!-- Inventory Table -->
     <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-outline-variant/20">
+      <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
         <h3 class="font-bold text-on-surface">Inventory</h3>
+        <span class="text-xs text-on-surface-variant">{{ equipment | length }} item(s)</span>
+      </div>
+      <div class="px-6 py-4 border-b border-outline-variant/20 flex flex-col md:flex-row gap-3">
+        <select id="equipment-filter-attribute"
+                class="bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200">
+          <option value="all">All attributes</option>
+          <option value="id">ID</option>
+          <option value="item">Item</option>
+          <option value="sport">Sport</option>
+          <option value="total">Total</option>
+          <option value="available">Available</option>
+          <option value="condition">Condition</option>
+        </select>
+        <div class="relative flex-1 max-w-md">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
+          <input id="equipment-search" type="text"
+                 class="w-full bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                 placeholder="Enter value to filter inventory..."/>
+        </div>
       </div>
       <div class="overflow-x-auto">
-        <table class="w-full">
+        <table class="w-full" id="equipment-table">
           <thead>
             <tr class="bg-surface-container-low/50">
               <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">ID</th>
@@ -26,6 +52,9 @@
               <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Total</th>
               <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Available</th>
               <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Condition</th>
+              {% if current_user.role == "Admin" %}
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
+              {% endif %}
             </tr>
           </thead>
           <tbody>
@@ -34,14 +63,14 @@
               <td class="px-6 py-4 text-sm text-on-surface-variant">{{ e.EquipmentID }}</td>
               <td class="px-6 py-4 text-sm font-medium text-on-surface">{{ e.EquipmentName }}</td>
               <td class="px-6 py-4 text-sm text-on-surface-variant">{{ e.SportName or 'General' }}</td>
-              <td class="px-6 py-4 text-sm text-on-surface-variant">{{ e.TotalQuantity }}</td>
+              <td class="px-6 py-4 text-sm text-on-surface">{{ e.TotalQuantity }}</td>
               <td class="px-6 py-4 text-sm">
                 {% if e.AvailableQuantity == 0 %}
-                <span class="font-bold text-error">{{ e.AvailableQuantity }}</span>
+                <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ e.AvailableQuantity }} left</span>
                 {% elif e.AvailableQuantity <= 2 %}
-                <span class="font-bold text-yellow-600">{{ e.AvailableQuantity }}</span>
+                <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ e.AvailableQuantity }} left</span>
                 {% else %}
-                <span class="font-semibold text-secondary">{{ e.AvailableQuantity }}</span>
+                <span class="px-2.5 py-1 rounded-lg bg-secondary/10 text-secondary text-[10px] font-extrabold uppercase tracking-wider">{{ e.AvailableQuantity }} left</span>
                 {% endif %}
               </td>
               <td class="px-6 py-4 text-sm">
@@ -50,10 +79,36 @@
                 {% elif e.EquipmentCondition == 'Good' %}
                 <span class="px-2.5 py-1 rounded-lg bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
                 {% elif e.EquipmentCondition == 'Fair' %}
-                <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
+                <span class="px-2.5 py-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
                 {% else %}
                 <span class="px-2.5 py-1 rounded-lg bg-error-container text-on-error-container text-[10px] font-extrabold uppercase tracking-wider">{{ e.EquipmentCondition }}</span>
                 {% endif %}
+              </td>
+              {% if current_user.role == "Admin" %}
+              <td class="px-6 py-4 text-sm">
+                <div class="flex items-center justify-end gap-1">
+                  <a href="/ui/equipment/{{ e.EquipmentID }}/edit"
+                     class="p-2 text-on-surface-variant hover:text-secondary hover:bg-secondary-container/20 rounded-lg transition-all"
+                     title="Edit">
+                    <span class="material-symbols-outlined text-base">edit</span>
+                  </a>
+                  <form method="post" action="/ui/equipment/{{ e.EquipmentID }}/delete" class="inline"
+                        onsubmit="return confirm('Delete this equipment item?');">
+                    <button type="submit"
+                            class="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/30 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Delete"
+                            {% if e.IssuedQuantity and e.IssuedQuantity > 0 %}disabled{% endif %}>
+                      <span class="material-symbols-outlined text-base">delete</span>
+                    </button>
+                  </form>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="{% if current_user.role == 'Admin' %}7{% else %}6{% endif %}" class="px-6 py-8 text-sm text-on-surface-variant text-center">
+                No equipment items found.
               </td>
             </tr>
           {% endfor %}
@@ -62,11 +117,10 @@
       </div>
     </div>
 
-    <!-- Active Issues -->
     <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
       <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
-        <h3 class="font-bold text-on-surface">Active Issues (Unreturned)</h3>
-        <span class="text-xs text-on-surface-variant">{{ issues | length }} item(s) outstanding</span>
+        <h3 class="font-bold text-on-surface">Active Issues</h3>
+        <span class="text-xs text-on-surface-variant">{{ issues | length }} outstanding</span>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
@@ -77,7 +131,7 @@
               <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Issued</th>
               <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-left">Qty</th>
               {% if current_user.role in ("Admin", "Coach") %}
-              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Return</th>
+              <th class="px-6 py-4 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant text-right">Actions</th>
               {% endif %}
             </tr>
           </thead>
@@ -87,9 +141,9 @@
               <td class="px-6 py-4 text-sm font-medium text-on-surface">{{ i.EquipmentName }}</td>
               <td class="px-6 py-4 text-sm">
                 {% if current_user.role in ("Admin", "Coach") or current_user.member_id == i.MemberID %}
-                <a href="/ui/members/{{ i.MemberID }}" class="text-secondary hover:underline">{{ i.MemberName }}</a>
+                <a href="/ui/members/{{ i.MemberID }}" class="text-on-surface hover:text-secondary transition-colors">{{ i.MemberName }}</a>
                 {% else %}
-                {{ i.MemberName }}
+                <span class="text-on-surface">{{ i.MemberName }}</span>
                 {% endif %}
               </td>
               <td class="px-6 py-4 text-sm text-on-surface-variant">{{ i.IssueDate }}</td>
@@ -100,10 +154,9 @@
                       class="flex items-center justify-end gap-2">
                   <input type="date" name="return_date"
                          class="bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
-                         style="width:140px" required
-                         value="{{ now_date if now_date else '' }}"/>
+                         required min="{{ i.IssueDate }}" value="{{ i.IssueDate }}"/>
                   <button type="submit"
-                          class="bg-secondary hover:opacity-90 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                          class="bg-secondary hover:opacity-90 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
                     Return
                   </button>
                 </form>
@@ -112,7 +165,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="5" class="px-6 py-8 text-sm text-on-surface-variant text-center">No outstanding issues</td>
+              <td colspan="5" class="px-6 py-8 text-sm text-on-surface-variant text-center">No outstanding issues.</td>
             </tr>
           {% endfor %}
           </tbody>
@@ -120,58 +173,14 @@
       </div>
     </div>
 
-    <!-- Add Inventory Item (Admin only) -->
-    {% if current_user.role == "Admin" %}
-    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
-      <h3 class="font-bold text-on-surface mb-4">Add Inventory Item</h3>
-      <form method="post" action="/ui/equipment/new">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-          <div class="md:col-span-2">
-            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Item Name</label>
-            <input type="text" name="equipment_name"
-                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
-                   required/>
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Total Quantity</label>
-            <input type="number" name="total_quantity"
-                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
-                   required min="0" value="1"/>
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Condition</label>
-            <select name="equipment_condition"
-                    class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
-                    required>
-              <option value="New">New</option>
-              <option value="Good">Good</option>
-              <option value="Fair">Fair</option>
-              <option value="Poor">Poor</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Sport ID <span class="text-on-surface-variant font-normal">(opt.)</span></label>
-            <input type="number" name="sport_id"
-                   class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
-                   min="1" placeholder="Optional"/>
-          </div>
-          <div>
-            <button type="submit"
-                    class="w-full bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg text-sm font-semibold transition-all shadow-sm">
-              Add Item
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-    {% endif %}
-
-    <!-- Issue Equipment (Admin / Coach) -->
     {% if current_user.role in ("Admin", "Coach") %}
-    <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
-      <h3 class="font-bold text-on-surface mb-4">Issue Equipment</h3>
-      <form method="post" action="/ui/equipment/issue">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
+        <h3 class="font-bold text-on-surface">Issue Equipment</h3>
+        <span class="text-xs text-on-surface-variant">Create a new issue record</span>
+      </div>
+      <div class="px-6 py-5">
+        <form method="post" action="/ui/equipment/issue" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
           <div>
             <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Equipment</label>
             <select name="equipment_id"
@@ -187,6 +196,13 @@
             <input type="number" name="member_id"
                    class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
                    required min="1" placeholder="Enter member ID"/>
+            <div class="mt-2 text-xs text-on-surface-variant">
+              {% if current_user.role == "Coach" %}
+              Use a member from one of your teams.
+              {% else %}
+              Enter the target member ID directly.
+              {% endif %}
+            </div>
           </div>
           <div>
             <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Issue Date</label>
@@ -200,17 +216,43 @@
                    class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
                    required min="1" value="1"/>
           </div>
-          <div class="pt-6">
+          <div>
             <button type="submit"
                     class="w-full bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg text-sm font-semibold transition-all shadow-sm">
               Issue
             </button>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
     {% endif %}
 
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+function filterEquipmentTable() {
+  const attribute = document.getElementById('equipment-filter-attribute').value;
+  const query = document.getElementById('equipment-search').value.toLowerCase();
+  const colIndex = {id: 0, item: 1, sport: 2, total: 3, available: 4, condition: 5};
+  document.querySelectorAll('#equipment-table tbody tr').forEach(function(row) {
+    const cells = row.querySelectorAll('td');
+    if (!cells.length) {
+      row.style.display = '';
+      return;
+    }
+    if (attribute === 'all') {
+      row.style.display = row.textContent.toLowerCase().includes(query) ? '' : 'none';
+      return;
+    }
+    const index = colIndex[attribute];
+    const cell = row.querySelector(`td:nth-child(${index + 1})`);
+    row.style.display = cell && cell.textContent.toLowerCase().includes(query) ? '' : 'none';
+  });
+}
+
+document.getElementById('equipment-filter-attribute').addEventListener('change', filterEquipmentTable);
+document.getElementById('equipment-search').addEventListener('input', filterEquipmentTable);
+</script>
 {% endblock %}

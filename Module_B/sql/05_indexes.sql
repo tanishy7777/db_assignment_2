@@ -1,4 +1,3 @@
-
 USE olympia_track;
 
 CREATE INDEX idx_perf_recdate

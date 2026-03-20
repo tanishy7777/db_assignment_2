@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{% if equipment %}Edit Equipment{% else %}Add Equipment{% endif %} - Olympia Track{% endblock %}
+{% block content %}
+<div class="pt-6 pb-12 px-4 sm:px-8 max-w-4xl mx-auto">
+
+  <a href="/ui/equipment"
+     class="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
+    <span class="material-symbols-outlined text-lg">arrow_back</span>
+    Back
+  </a>
+
+  <div class="mb-8">
+    <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">
+      {% if equipment %}Edit{% else %}Create{% endif %}
+    </span>
+    <h2 class="text-3xl font-extrabold font-headline text-on-surface tracking-tight">
+      {% if equipment %}Edit Equipment{% else %}Add Equipment{% endif %}
+    </h2>
+  </div>
+
+  {% if error %}
+  <div class="mb-6 flex items-center gap-3 p-4 bg-error-container rounded-xl border-l-4 border-error">
+    <span class="material-symbols-outlined text-error">error</span>
+    <p class="text-sm font-medium text-on-error-container">{{ error }}</p>
+  </div>
+  {% endif %}
+
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+    <form method="post" action="{% if equipment %}/ui/equipment/{{ equipment.EquipmentID }}/edit{% else %}/ui/equipment/new{% endif %}">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {% if not equipment %}
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Equipment ID</label>
+          <input type="text"
+                 class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface-variant"
+                 value="Auto-generated" disabled/>
+          <div class="mt-2 text-xs text-on-surface-variant">The system will assign the equipment ID automatically.</div>
+        </div>
+        {% endif %}
+
+        <div class="{% if not equipment %}md:col-span-2{% endif %}">
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Item Name</label>
+          <input type="text" name="equipment_name"
+                 class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                 required value="{{ form_data.get('equipment_name', '') or (equipment.EquipmentName if equipment else '') }}"/>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Total Quantity</label>
+          <input type="number" name="total_quantity"
+                 class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                 required min="0"
+                 value="{{ form_data.get('total_quantity', '') if form_data.get('total_quantity') is not none else (equipment.TotalQuantity if equipment else 1) }}"/>
+          {% if equipment %}
+          <div class="mt-2 text-xs text-on-surface-variant">Update the total stock here. It cannot go below the quantity currently issued out.</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Condition</label>
+          <select name="equipment_condition"
+                  class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200"
+                  required>
+            {% for condition in ["New", "Good", "Fair", "Poor"] %}
+            <option value="{{ condition }}"
+                    {% if form_data.get('equipment_condition') == condition or (equipment and equipment.EquipmentCondition == condition and not form_data.get('equipment_condition')) %}selected{% endif %}>
+              {{ condition }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Sport</label>
+          <select name="sport_id"
+                  class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all duration-200">
+            <option value="">General / No Sport</option>
+            {% for sport in sports %}
+            <option value="{{ sport.SportID }}"
+                    {% if form_data.get('sport_id')|string == sport.SportID|string or (equipment and equipment.SportID == sport.SportID and form_data.get('sport_id') is none) %}selected{% endif %}>
+              {{ sport.SportName }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+      </div>
+
+      <div class="mt-6 flex gap-3">
+        <button type="submit"
+                class="bg-primary hover:bg-primary-container text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm">
+          {% if equipment %}Save Changes{% else %}Create Equipment{% endif %}
+        </button>
+        <a href="/ui/equipment"
+           class="bg-surface-container-lowest border border-outline-variant/30 text-on-surface px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-all">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

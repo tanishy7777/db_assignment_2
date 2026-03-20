@@ -1,8 +1,6 @@
-
 DROP DATABASE IF EXISTS olympia_track;
 CREATE DATABASE olympia_track;
 USE olympia_track;
-
 
 CREATE TABLE Member (
     MemberID      INT          PRIMARY KEY,
@@ -40,7 +38,6 @@ CREATE TABLE Tournament (
     Status         ENUM('Upcoming', 'Ongoing', 'Completed') NOT NULL,
     CHECK (EndDate >= StartDate)
 );
-
 
 CREATE TABLE Team (
     TeamID     INT          PRIMARY KEY,
@@ -105,7 +102,6 @@ CREATE TABLE Participation (
         ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-
 CREATE TABLE Equipment (
     EquipmentID        INT          PRIMARY KEY,
     EquipmentName      VARCHAR(50)  NOT NULL,
@@ -168,7 +164,6 @@ CREATE TABLE MedicalRecord (
     FOREIGN KEY (MemberID) REFERENCES Member(MemberID)
         ON DELETE CASCADE ON UPDATE CASCADE
 );
-
 
 INSERT INTO Member VALUES
 (1,  'Aarav Sharma',    'img/aarav.jpg',    19, 'aarav.sharma@iitgn.ac.in',   '9876543201', 'M', 'Player', '2024-08-01'),
@@ -392,4 +387,3 @@ INSERT INTO MedicalRecord VALUES
 (13, 8,  'Rotator Cuff Strain',       '2025-02-15', '2025-03-05', 'Recovered'),
 (14, 3,  'Asthma (Exercise-induced)', '2024-08-15', NULL,         'Chronic'),
 (15, 5,  'Plantar Fasciitis',         '2025-03-25', NULL,         'Active');
-

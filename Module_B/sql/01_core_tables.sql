@@ -1,4 +1,3 @@
-
 DROP DATABASE IF EXISTS olympia_auth;
 CREATE DATABASE olympia_auth;
 USE olympia_auth;

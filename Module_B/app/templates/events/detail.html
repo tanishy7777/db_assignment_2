@@ -1,15 +1,13 @@
 {% extends "base.html" %}
-{% block title %}{{ event.EventName }} — Olympia Track{% endblock %}
+{% block title %}{{ event.EventName }} - Olympia Track{% endblock %}
 {% block content %}
 <div class="pt-6 pb-12 px-4 sm:px-8 max-w-7xl mx-auto">
 
-  <!-- Back -->
   <a href="/ui/events" class="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
     <span class="material-symbols-outlined text-lg">arrow_back</span>
     Back to Events
   </a>
 
-  <!-- Page Title -->
   <div class="mb-8 flex items-center justify-between">
     <div>
       <span class="text-secondary font-semibold text-xs tracking-[0.2em] uppercase mb-2 block">Event</span>
@@ -34,10 +32,8 @@
 
   <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
 
-    <!-- Left Column: Details + Add Team -->
     <div class="md:col-span-4 space-y-6">
 
-      <!-- Event Details -->
       <div class="bg-surface-container-lowest rounded-xl shadow-sm p-6">
         <h3 class="font-bold text-on-surface mb-4">Event Details</h3>
         <dl class="space-y-3">
@@ -47,7 +43,7 @@
           </div>
           <div class="flex justify-between items-start">
             <dt class="text-sm text-on-surface-variant">Time</dt>
-            <dd class="text-sm font-semibold text-on-surface">{{ event.StartTime }} – {{ event.EndTime }}</dd>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.StartTime }} - {{ event.EndTime }}</dd>
           </div>
           <div class="flex justify-between items-start">
             <dt class="text-sm text-on-surface-variant">Sport</dt>
@@ -59,14 +55,14 @@
           </div>
           <div class="flex justify-between items-start">
             <dt class="text-sm text-on-surface-variant">Round</dt>
-            <dd class="text-sm font-semibold text-on-surface">{{ event.Round or '—' }}</dd>
+            <dd class="text-sm font-semibold text-on-surface">{{ event.Round or '-' }}</dd>
           </div>
           <div class="flex justify-between items-start">
             <dt class="text-sm text-on-surface-variant">Tournament</dt>
             <dd class="text-sm font-semibold text-on-surface">
               {% if event.TournamentID %}
               <a href="/ui/tournaments/{{ event.TournamentID }}" class="text-secondary hover:underline">{{ event.TournamentName }}</a>
-              {% else %}—{% endif %}
+              {% else %}-{% endif %}
             </dd>
           </div>
           <div class="flex justify-between items-center">
@@ -86,27 +82,32 @@
         </dl>
       </div>
 
-      <!-- Add Team Card -->
-      {% if current_user.role in ("Admin", "Coach") and eligible_teams %}
+      {% if current_user.role in ("Admin", "Coach") %}
       <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
-        <div class="px-6 py-4 border-b border-outline-variant/20">
+        <div class="px-6 py-4 border-b border-outline-variant/20 flex items-center justify-between">
           <h3 class="font-bold text-on-surface">Add Team</h3>
+          <span class="text-xs text-on-surface-variant">{{ eligible_teams | length }} eligible</span>
         </div>
         <div class="px-6 py-4">
           <form method="post" action="/ui/events/{{ event.EventID }}/add-team" class="flex gap-2">
             <select name="team_id"
                     class="flex-1 bg-surface-container-low border-none rounded-lg px-3 py-2 text-sm text-on-surface focus:ring-2 focus:ring-secondary/20 focus:bg-surface-container transition-all"
+                    {% if not eligible_teams %}disabled{% endif %}
                     required>
-              <option value="">— Select team —</option>
+              <option value="">- Select team -</option>
               {% for t in eligible_teams %}
               <option value="{{ t.TeamID }}">{{ t.TeamID }} - {{ t.TeamName }}</option>
               {% endfor %}
             </select>
             <button type="submit"
-                    class="bg-secondary hover:opacity-90 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap">
+                    class="bg-secondary hover:opacity-90 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+                    {% if not eligible_teams %}disabled{% endif %}>
               Add
             </button>
           </form>
+          {% if not eligible_teams %}
+          <p class="text-xs text-on-surface-variant mt-2">No eligible teams are available to add right now.</p>
+          {% endif %}
           {% if current_user.role == "Coach" %}
           <p class="text-xs text-on-surface-variant mt-2">You can only add teams that you coach.</p>
           {% endif %}
@@ -116,7 +117,6 @@
 
     </div>
 
-    <!-- Right Column: Participating Teams -->
     <div class="md:col-span-8">
       <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-outline-variant/20">
@@ -142,8 +142,8 @@
                 <td class="px-6 py-4 text-sm">
                   <a href="/ui/teams/{{ p.TeamID }}" class="font-medium text-on-surface hover:text-secondary transition-colors">{{ p.TeamName }}</a>
                 </td>
-                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.Score or '—' }}</td>
-                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.EventRank or '—' }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.Score or '-' }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.EventRank or '-' }}</td>
                 <td class="px-6 py-4 text-sm">
                   {% if p.Result %}
                     {% if p.Result == 'Win' %}
@@ -155,9 +155,9 @@
                     {% else %}
                     <span class="px-2.5 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-[10px] font-extrabold uppercase tracking-wider">{{ p.Result }}</span>
                     {% endif %}
-                  {% else %}—{% endif %}
+                  {% else %}-{% endif %}
                 </td>
-                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.Remarks or '—' }}</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">{{ p.Remarks or '-' }}</td>
                 {% if current_user.role in ("Admin", "Coach") %}
                 <td class="px-6 py-4 text-sm">
                   <div class="flex items-center justify-end">

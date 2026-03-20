@@ -1,4 +1,3 @@
-
 USE olympia_auth;
 
 INSERT INTO users (username, password_hash, role, member_id) VALUES

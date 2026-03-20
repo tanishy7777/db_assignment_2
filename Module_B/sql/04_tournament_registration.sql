@@ -1,4 +1,3 @@
-
 USE olympia_track;
 
 CREATE TABLE IF NOT EXISTS TournamentRegistration (
