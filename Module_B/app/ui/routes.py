@@ -312,6 +312,8 @@ def member_create(
     username: str = Form(...),
     password: str = Form(...),
 ):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/members", status_code=303)
     if not isinstance(member_id, int):
         member_id = None
     if not isinstance(contact_country_code, str):
@@ -454,6 +456,8 @@ def member_edit_submit(
         else:
             contact_value = contact_number or ""
     except ValueError as exc:
+        if current_user["role"] != "Admin" and current_user["member_id"] != member_id:
+            raise HTTPException(status_code=403, detail="Access denied")
         form_data = _member_form_defaults(form_data={
             "Name": name,
             "Email": email,
@@ -522,6 +526,8 @@ def member_delete(
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
 ):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/members", status_code=303)
     try:
         api_delete_member(member_id, request, current_user, track_db, auth_db)
     except HTTPException:

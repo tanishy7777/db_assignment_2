@@ -26,3 +26,5 @@ JWT_SECRET       = os.getenv("JWT_SECRET", "change-me")
 JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", 8))
 
 ALGORITHM        = "HS256"
+
+SECURE_COOKIES   = os.getenv("SECURE_COOKIES", "false").lower() == "true"

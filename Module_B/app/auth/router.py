@@ -2,11 +2,12 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from app.limiter import limiter
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from app.auth.dependencies import get_current_user, _hash_token
 from app.auth.jwt_handler import create_token
-from app.config import JWT_EXPIRY_HOURS
+from app.config import JWT_EXPIRY_HOURS, SECURE_COOKIES
 from app.database import get_auth_db
 from app.services.audit import write_audit_log
 
@@ -19,6 +20,7 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
+@limiter.limit("100/minute")
 def login(
     body: LoginRequest,
     request: Request,
@@ -62,6 +64,7 @@ def login(
         httponly=True,
         max_age=JWT_EXPIRY_HOURS * 3600,
         samesite="lax",
+        secure=SECURE_COOKIES,
     )
     return {
         "success": True,
@@ -75,7 +78,7 @@ def login(
     }
 
 
-@router.get("/logout")
+@router.post("/logout")
 def logout(
     request: Request,
     response: Response,

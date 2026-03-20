@@ -19,12 +19,16 @@ async def get_current_user(
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     db.execute(
-        "SELECT is_revoked FROM sessions WHERE token_hash = %s",
+        "SELECT is_revoked FROM sessions WHERE token_hash = %s AND expires_at > NOW()",
         (_hash_token(access_token),),
     )
     session = db.fetchone()
     if not session or session["is_revoked"]:
         raise HTTPException(status_code=401, detail="Session expired or revoked")
+    db.execute("SELECT is_active FROM users WHERE user_id = %s", (payload["user_id"],))
+    user = db.fetchone()
+    if not user or not user["is_active"]:
+        raise HTTPException(status_code=401, detail="Account disabled")
     return payload
 
 

@@ -212,6 +212,38 @@ def test_create_member_duplicate_username_returns_failure(admin_user, monkeypatc
     assert "existing_user" in result["message"]
 
 
+def test_create_member_non_admin_is_403(player_user, monkeypatch):
+    from app.routers import members
+    monkeypatch.setattr(members, "write_audit_log", lambda *a, **kw: None)
+    with pytest.raises(HTTPException) as exc_info:
+        members.create_member(
+            members.MemberCreate(
+                member_id=99, name="Nope", age=20, email="nope@example.com",
+                contact_number="+15551234567", gender="F", role="Player",
+                join_date="2024-01-01", username="nope", password="secret",
+            ),
+            make_request("/api/members", method="POST"),
+            current_user=player_user,
+            track_db=ScriptedDB(),
+            auth_db=ScriptedDB(),
+        )
+    assert exc_info.value.status_code == 403
+
+
+def test_delete_member_non_admin_is_403(player_user, monkeypatch):
+    from app.routers import members
+    monkeypatch.setattr(members, "write_audit_log", lambda *a, **kw: None)
+    with pytest.raises(HTTPException) as exc_info:
+        members.delete_member(
+            7,
+            make_request("/api/members/7", method="DELETE"),
+            current_user=player_user,
+            track_db=ScriptedDB(),
+            auth_db=ScriptedDB(),
+        )
+    assert exc_info.value.status_code == 403
+
+
 def test_update_member_no_fields_is_400(admin_user, monkeypatch):
     from app.routers import members
     monkeypatch.setattr(members, "write_audit_log", lambda *a, **kw: None)

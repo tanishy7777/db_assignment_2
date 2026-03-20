@@ -338,6 +338,7 @@ def issue_equipment(
                ON e.EquipmentID = ei.EquipmentID AND ei.ReturnDate IS NULL
         WHERE e.EquipmentID = %s
         GROUP BY e.TotalQuantity
+        FOR UPDATE
         """,
         (body.equipment_id,),
     )

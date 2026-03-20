@@ -725,6 +725,56 @@ def test_member_create_ui_supports_split_phone_fields(monkeypatch, admin_user):
     assert captured["body"].contact_number == "+919876543210"
 
 
+def test_member_create_ui_blocks_non_admin(monkeypatch, player_user):
+    from app.ui import routes as ui_routes
+    called = {"api": False}
+    monkeypatch.setattr(
+        ui_routes,
+        "api_create_member",
+        lambda *args, **kwargs: called.__setitem__("api", True),
+    )
+    response = ui_routes.member_create(
+        make_request("/ui/members/new", method="POST"),
+        player_user,
+        GuardDB(allowed_substrings=()),
+        GuardDB(allowed_substrings=()),
+        member_id=None,
+        name="Blocked",
+        email="blocked@example.com",
+        age=21,
+        contact_country_code="+91",
+        contact_number_local="9876543210",
+        gender="F",
+        role="Player",
+        join_date="2024-01-01",
+        username="blocked",
+        password="secret",
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/ui/members"
+    assert called["api"] is False
+
+
+def test_member_delete_ui_blocks_non_admin(monkeypatch, player_user):
+    from app.ui import routes as ui_routes
+    called = {"api": False}
+    monkeypatch.setattr(
+        ui_routes,
+        "api_delete_member",
+        lambda *args, **kwargs: called.__setitem__("api", True),
+    )
+    response = ui_routes.member_delete(
+        1,
+        make_request("/ui/members/1/delete", method="POST"),
+        player_user,
+        GuardDB(allowed_substrings=()),
+        GuardDB(allowed_substrings=()),
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/ui/members"
+    assert called["api"] is False
+
+
 def test_event_edit_submit_rerenders_form_with_data_on_http_error(monkeypatch, admin_user):
     from app.ui import routes as ui_routes
     monkeypatch.setattr(

@@ -1,6 +1,10 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.responses import RedirectResponse
-from app.database import get_auth_db, get_track_db
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.database import get_auth_db, get_track_db, _auth_pool
+from app.limiter import limiter
 from app.auth.router import router as auth_router
 from app.routers.members import router as members_router
 from app.routers.teams import router as teams_router
@@ -13,7 +17,22 @@ from app.routers.admin import router as admin_router
 from app.routers.registration import router as registration_router
 from app.ui.routes import router as ui_router
 
-app = FastAPI(title="Olympia Track", version="1.0")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    conn = _auth_pool.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM sessions WHERE expires_at <= NOW()")
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    yield
+
+
+app = FastAPI(title="Olympia Track", version="1.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth_router,        prefix="/auth",                  tags=["auth"])
 

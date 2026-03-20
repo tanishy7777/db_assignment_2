@@ -37,6 +37,11 @@ class MemberUpdate(BaseModel):
     image:          Optional[str] = None
 
 
+def _ensure_admin(current_user: dict) -> None:
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+
 def _get_member_or_404(track_db, member_id: int) -> dict:
     track_db.execute("SELECT * FROM Member WHERE MemberID = %s", (member_id,))
     row = track_db.fetchone()
@@ -198,6 +203,7 @@ def create_member(
 ):
     import bcrypt
     ip = request.client.host if request.client else "unknown"
+    _ensure_admin(current_user)
     if body.age <= 0:
         return {"success": False, "message": "Age must be a positive number.", "data": body}
     try:
@@ -321,6 +327,7 @@ def delete_member(
     auth_db=Depends(get_auth_db),
 ):
     ip = request.client.host if request.client else "unknown"
+    _ensure_admin(current_user)
     _get_member_or_404(track_db, member_id)
     auth_db.execute(
         "UPDATE users SET member_id = NULL WHERE member_id = %s", (member_id,)

@@ -124,7 +124,9 @@
             <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
               <a href="/ui/members/{{ current_user.member_id }}" class="dropdown-item">My Profile</a>
               <div class="dropdown-divider"></div>
-              <a href="/auth/logout" class="dropdown-item text-danger">Logout</a>
+              <form method="post" action="/auth/logout" style="margin:0">
+                <button type="submit" class="dropdown-item text-danger" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;">Logout</button>
+              </form>
             </div>
           </div>
         </div>

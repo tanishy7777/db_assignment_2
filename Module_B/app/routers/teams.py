@@ -177,6 +177,10 @@ def get_team(
         (team_id,),
     )
     roster = track_db.fetchall()
+    if current_user["role"] == "Player":
+        for row in roster:
+            if row.get("MemberID") != current_user["member_id"]:
+                row.pop("Email", None)
     track_db.execute(
         """
         SELECT e.EventID, e.EventName, e.EventDate, e.StartTime, e.EndTime, e.Status,

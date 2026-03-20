@@ -2,7 +2,10 @@ import hashlib
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
+
+_audit_lock = threading.Lock()
 
 _log_path = os.path.join(os.path.dirname(__file__), "..", "..", "logs", "audit.log")
 
@@ -49,32 +52,33 @@ def write_audit_log(
     details,
     ip_address: str,
 ) -> None:
-    db.execute("SELECT entry_hash FROM audit_log ORDER BY log_id DESC LIMIT 1")
-    last = db.fetchone()
-    prev_hash = last["entry_hash"] if last else "0" * 64
-    _now = datetime.now(timezone.utc)
-    _ms  = _now.microsecond // 1000
-    ts   = _now.strftime("%Y-%m-%d %H:%M:%S") + f".{_ms:03d}"
-    details_str = json.dumps(details) if details is not None else None
-    entry_hash = _compute_entry_hash(
-        ts, user_id, username, action,
-        table_name, record_id, status, details_str, ip_address, prev_hash,
-    )
-    db.execute(
-        """
-        INSERT INTO audit_log
-            (timestamp, user_id, username, action, table_name, record_id,
-             status, details, ip_address, prev_hash, entry_hash)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (
-            ts, user_id, username, action, table_name, record_id,
-            status, details_str, ip_address, prev_hash, entry_hash,
-        ),
-    )
-    _file_logger.info(
-        f"{ts} | {username} | {action} | {table_name} | {status} | hash={entry_hash}"
-    )
+    with _audit_lock:
+        db.execute("SELECT entry_hash FROM audit_log ORDER BY log_id DESC LIMIT 1")
+        last = db.fetchone()
+        prev_hash = last["entry_hash"] if last else "0" * 64
+        _now = datetime.now(timezone.utc)
+        _ms  = _now.microsecond // 1000
+        ts   = _now.strftime("%Y-%m-%d %H:%M:%S") + f".{_ms:03d}"
+        details_str = json.dumps(details) if details is not None else None
+        entry_hash = _compute_entry_hash(
+            ts, user_id, username, action,
+            table_name, record_id, status, details_str, ip_address, prev_hash,
+        )
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (timestamp, user_id, username, action, table_name, record_id,
+                 status, details, ip_address, prev_hash, entry_hash)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                ts, user_id, username, action, table_name, record_id,
+                status, details_str, ip_address, prev_hash, entry_hash,
+            ),
+        )
+        _file_logger.info(
+            f"{ts} | {username} | {action} | {table_name} | {status} | hash={entry_hash}"
+        )
 
 
 def verify_audit_chain(db) -> dict:
