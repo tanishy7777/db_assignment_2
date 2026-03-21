@@ -26,12 +26,14 @@ from app.routers.equipment import (
 from app.routers.events import (
     EventCreate,
     EventUpdate,
+    ParticipationUpdate,
     create_event as api_create_event,
     delete_event as api_delete_event,
     get_event as api_get_event,
     get_event_form_options as api_get_event_form_options,
     list_events as api_list_events,
     update_event as api_update_event,
+    update_participation as api_update_participation,
 )
 
 from app.routers.medical import (
@@ -559,8 +561,10 @@ def team_new_form(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/teams", status_code=303)
+    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+    sports = track_db.fetchall()
     return templates.TemplateResponse(request, "teams/form.html",
-                                      _ctx(request, current_user, form_data={"member_ids": [""]}, active="teams", error=None))
+                                      _ctx(request, current_user, form_data={"member_ids": [""]}, active="teams", error=None, sports=sports))
 
 
 @router.post("/teams/new")
@@ -589,10 +593,12 @@ async def team_create(
         captain_id = _parse_optional_int(form.get("captain_id"), "Captain ID")
         member_ids = _parse_member_ids(form)
     except ValueError as exc:
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
         return templates.TemplateResponse(
             request,
             "teams/form.html",
-            _ctx(request, current_user, active="teams", form_data=raw_form_data, error=str(exc)),
+            _ctx(request, current_user, active="teams", form_data=raw_form_data, error=str(exc), sports=sports),
         )
     body = TeamCreate(
         team_name=team_name,
@@ -605,8 +611,10 @@ async def team_create(
     try:
         res = api_create_team(body, request, current_user, track_db, auth_db)
     except HTTPException as exc:
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
         return templates.TemplateResponse(request, "teams/form.html",
-                                          _ctx(request, current_user, active="teams", form_data=raw_form_data, error=exc.detail))
+                                          _ctx(request, current_user, active="teams", form_data=raw_form_data, error=exc.detail, sports=sports))
     return RedirectResponse(f"/ui/teams/{res['data']['team_id']}", status_code=303)
 
 
@@ -629,6 +637,8 @@ def team_edit_form(
         return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
     if team.get("FormedDate") is not None:
         team["FormedDate"] = str(team["FormedDate"])
+    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+    sports = track_db.fetchall()
     form_data = {
         "team_name": team["TeamName"],
         "sport_id": team["SportID"],
@@ -638,7 +648,7 @@ def team_edit_form(
         "formed_date": team["FormedDate"]
     }
     return templates.TemplateResponse(request, "teams/form.html",
-                                      _ctx(request, current_user, active="teams", team=team, form_data=form_data, error=None))
+                                      _ctx(request, current_user, active="teams", team=team, form_data=form_data, error=None, sports=sports))
 
 
 @router.post("/teams/{team_id}/edit")
@@ -668,6 +678,8 @@ async def team_edit_submit(
         captain_id = _parse_optional_int(form.get("captain_id"), "Captain ID")
         member_ids = _parse_member_ids(form)
     except ValueError as exc:
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
         team = {
             "TeamID": team_id,
             "TeamName": team_name,
@@ -679,7 +691,7 @@ async def team_edit_submit(
         return templates.TemplateResponse(
             request,
             "teams/form.html",
-            _ctx(request, current_user, active="teams", team=team, form_data=raw_form_data, error=str(exc)),
+            _ctx(request, current_user, active="teams", team=team, form_data=raw_form_data, error=str(exc), sports=sports),
         )
     body = TeamUpdate(
         team_name=team_name,
@@ -703,8 +715,10 @@ async def team_edit_submit(
             "CaptainID": raw_form_data["captain_id"],
             "FormedDate": formed_date,
         }
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
         return templates.TemplateResponse(request, "teams/form.html",
-                                          _ctx(request, current_user, active="teams", team=team, form_data=raw_form_data, error=exc.detail))
+                                          _ctx(request, current_user, active="teams", team=team, form_data=raw_form_data, error=exc.detail, sports=sports))
 
 
 @router.post("/teams/{team_id}/delete")
@@ -1217,6 +1231,45 @@ def event_remove_team(
     except HTTPException as exc:
         return _flash_redirect(f"/ui/events/{event_id}", error=exc.detail)
     return _flash_redirect(f"/ui/events/{event_id}", success="Team removed from event.")
+
+
+@router.post("/events/{event_id}/edit-participation/{team_id}")
+async def event_edit_participation(
+    event_id: int,
+    team_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] not in ("Admin", "Coach"):
+        return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+    
+    form = await request.form()
+    
+    # Get the raw string values
+    score = form.get("score", "").strip()
+    event_rank = form.get("event_rank", "").strip()
+    result = form.get("result", "").strip()
+    remarks = form.get("remarks", "").strip()
+    
+    # Parse rank (keep as integer), but leave score as a string
+    parsed_rank = int(event_rank) if event_rank else None
+    
+    from app.routers.events import ParticipationUpdate
+    body = ParticipationUpdate(
+        score=score if score else None,  # Pass the string directly instead of float()
+        event_rank=parsed_rank,
+        result=result or None,
+        remarks=remarks or None,
+    )
+    
+    try:
+        api_update_participation(event_id, team_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/events/{event_id}", error=exc.detail)
+    
+    return _flash_redirect(f"/ui/events/{event_id}", success="Participation updated.")
 
 
 @router.get("/events/{event_id}", response_class=HTMLResponse)

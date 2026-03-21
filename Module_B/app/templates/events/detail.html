@@ -106,23 +106,43 @@
               </thead>
               <tbody>
               {% for p in participation %}
-                <tr>
+                <tr data-team-id="{{ p.TeamID }}">
                   <td><a href="/ui/teams/{{ p.TeamID }}">{{ p.TeamName }}</a></td>
-                  <td>{{ p.Score or "—" }}</td>
-                  <td>{{ p.EventRank or "—" }}</td>
-                  <td>
-                    {% if p.Result %}
-                    <span class="badge bg-{% if p.Result == 'Win' %}green{% elif p.Result == 'Loss' %}red{% elif p.Result == 'Draw' %}yellow{% else %}secondary{% endif %}-lt">
-                      {{ p.Result }}
-                    </span>
-                    {% else %}—{% endif %}
+                  <td class="editable-cell" data-field="score">
+                    <span class="display-text">{{ p.Score or "—" }}</span>
+                    <input type="text" class="edit-input d-none form-control form-control-sm" value="{{ p.Score or '' }}" />
                   </td>
-                  <td class="text-muted">{{ p.Remarks or "—" }}</td>
+                  <td class="editable-cell" data-field="rank">
+                    <span class="display-text">{{ p.EventRank or "—" }}</span>
+                    <input type="number" class="edit-input d-none form-control form-control-sm" value="{{ p.EventRank or '' }}" />
+                  </td>
+                  <td class="editable-cell" data-field="result">
+                    <span class="display-text">
+                      {% if p.Result %}
+                      <span class="badge bg-{% if p.Result == 'Win' %}green{% elif p.Result == 'Loss' %}red{% elif p.Result == 'Draw' %}yellow{% else %}secondary{% endif %}-lt">
+                        {{ p.Result }}
+                      </span>
+                      {% else %}—{% endif %}
+                    </span>
+                    <select class="edit-input d-none form-select form-select-sm">
+                      <option value="">—</option>
+                      <option value="Win" {% if p.Result == 'Win' %}selected{% endif %}>Win</option>
+                      <option value="Loss" {% if p.Result == 'Loss' %}selected{% endif %}>Loss</option>
+                      <option value="Draw" {% if p.Result == 'Draw' %}selected{% endif %}>Draw</option>
+                    </select>
+                  </td>
+                  <td class="editable-cell" data-field="remarks">
+                    <span class="display-text">{{ p.Remarks or "—" }}</span>
+                    <textarea class="edit-input d-none form-control form-control-sm" rows="1">{{ p.Remarks or '' }}</textarea>
+                  </td>
                   {% if current_user.role in ("Admin", "Coach") %}
                   <td class="text-end">
                     {% if current_user.role == "Admin" or p.CoachID == current_user.member_id %}
+                    <button type="button" class="btn btn-sm btn-outline-primary edit-btn">Edit</button>
+                    <button type="button" class="btn btn-sm btn-success save-btn d-none">Save</button>
+                    <button type="button" class="btn btn-sm btn-secondary cancel-btn d-none">Cancel</button>
                     <form method="post" action="/ui/events/{{ event.EventID }}/remove-team/{{ p.TeamID }}"
-                          onsubmit="return confirm('Remove {{ p.TeamName }} from this event?')">
+                          onsubmit="return confirm('Remove {{ p.TeamName }} from this event?')" class="d-inline ms-1">
                       <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                     </form>
                     {% endif %}
@@ -144,4 +164,86 @@
     </div>
   </div>
 </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const row = this.closest('tr');
+      const teamId = row.dataset.teamId;
+      const editableCells = row.querySelectorAll('.editable-cell');
+      
+      // Show inputs, hide displays
+      editableCells.forEach(cell => {
+        cell.querySelector('.display-text').classList.add('d-none');
+        cell.querySelector('.edit-input').classList.remove('d-none');
+      });
+      
+      // Toggle buttons
+      row.querySelector('.edit-btn').classList.add('d-none');
+      row.querySelector('.save-btn').classList.remove('d-none');
+      row.querySelector('.cancel-btn').classList.remove('d-none');
+    });
+  });
+  
+  document.querySelectorAll('.cancel-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const row = this.closest('tr');
+      const editableCells = row.querySelectorAll('.editable-cell');
+      
+      // Hide inputs, show displays
+      editableCells.forEach(cell => {
+        cell.querySelector('.display-text').classList.remove('d-none');
+        cell.querySelector('.edit-input').classList.add('d-none');
+      });
+      
+      // Reset inputs to original values
+      // For simplicity, we can reload the page or store originals
+      // For now, just toggle back
+      row.querySelector('.edit-btn').classList.remove('d-none');
+      row.querySelector('.save-btn').classList.add('d-none');
+      row.querySelector('.cancel-btn').classList.add('d-none');
+    });
+  });
+  
+  document.querySelectorAll('.save-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const row = this.closest('tr');
+      const teamId = row.dataset.teamId;
+      const editableCells = row.querySelectorAll('.editable-cell');
+      
+      const formData = new FormData();
+      editableCells.forEach(cell => {
+        const field = cell.dataset.field;
+        const input = cell.querySelector('.edit-input');
+        let value = input.value.trim();
+        if (field === 'score' && value === '') value = '';
+        if (field === 'rank' && value === '') value = '';
+        formData.append(field === 'rank' ? 'event_rank' : field, value);
+      });
+      
+      try {
+        const response = await fetch(`/ui/events/{{ event.EventID }}/edit-participation/${teamId}`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.redirected) {
+          // Success, redirect to the same page
+          window.location.href = response.url;
+        } else {
+          // Error, show message
+          const result = await response.text();
+          alert('Error updating: ' + result);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    });
+  });
+});
+</script>
 {% endblock %}

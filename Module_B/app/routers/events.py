@@ -40,6 +40,13 @@ class EventUpdate(BaseModel):
     round:         Optional[str] = None
 
 
+class ParticipationUpdate(BaseModel):
+    score:    Optional[str] = None
+    event_rank: Optional[int] = None
+    result:   Optional[str] = None
+    remarks:  Optional[str] = None
+
+
 def _get_event_or_404(track_db, event_id: int) -> dict:
     track_db.execute(
         """
@@ -287,3 +294,56 @@ def delete_event(
     write_audit_log(auth_db, current_user["user_id"], current_user["username"],
                     "DELETE", "Event", str(event_id), "SUCCESS", None, ip)
     return {"success": True, "message": f"Event {event_id} deleted"}
+
+
+@router.put("/{event_id}/participation/{team_id}")
+def update_participation(
+    event_id: int,
+    team_id: int,
+    body: ParticipationUpdate,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    ip = request.client.host if request.client else "unknown"
+    # Check if participation exists
+    track_db.execute(
+        "SELECT * FROM Participation WHERE EventID = %s AND TeamID = %s",
+        (event_id, team_id),
+    )
+    participation = track_db.fetchone()
+    if not participation:
+        raise HTTPException(status_code=404, detail="Participation not found")
+    
+    # Check permissions: Admin or Coach of the team
+    if current_user["role"] != "Admin":
+        track_db.execute("SELECT CoachID FROM Team WHERE TeamID = %s", (team_id,))
+        team = track_db.fetchone()
+        if not team or team["CoachID"] != current_user["member_id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    col_map = {
+        "score": "Score",
+        "event_rank": "EventRank",
+        "result": "Result",
+        "remarks": "Remarks",
+    }
+    set_clause = ", ".join(f"{col_map[k]} = %s" for k in fields)
+    try:
+        track_db.execute(
+            f"UPDATE Participation SET {set_clause} WHERE EventID = %s AND TeamID = %s",
+            list(fields.values()) + [event_id, team_id]
+        )
+    except Exception as exc:
+        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                        "UPDATE", "Participation", f"{event_id}-{team_id}", "FAILURE", {"error": str(exc)}, ip)
+        raise HTTPException(status_code=400, detail=humanize_db_error(exc)) from exc
+    
+    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                    "UPDATE", "Participation", f"{event_id}-{team_id}", "SUCCESS", fields, ip)
+    return {"success": True, "message": "Participation updated"}

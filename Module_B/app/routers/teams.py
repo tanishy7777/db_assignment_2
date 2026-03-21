@@ -48,7 +48,7 @@ def _validate_team_fields(track_db, sport_id=None, coach_id=None, formed_date=No
         if formed > datetime.now().date():
             raise HTTPException(status_code=400, detail="Formed date cannot be in the future.")
     if sport_id:
-        track_db.execute("SELECT SportID FROM Sport WHERE SportID = %s", (sport_id,))
+        track_db.execute("SELECT SportName FROM Sport WHERE SportID = %s", (sport_id,))
         if not track_db.fetchone():
             raise HTTPException(status_code=400, detail="Selected sport is not valid.")
 
