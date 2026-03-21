@@ -62,10 +62,29 @@ def validate_member_name(name: str) -> str:
 def normalize_country_code(country_code: Optional[str]) -> str:
     if not isinstance(country_code, str):
         return DEFAULT_COUNTRY_CODE
-    normalized = (country_code or DEFAULT_COUNTRY_CODE).strip()
-    if not re.fullmatch(r"\+\d{1,4}", normalized):
+    normalized = country_code.strip()
+    if not re.fullmatch(r"\+\d{1,3}", normalized):
         raise ValueError("Country code must be in the format +<digits>.")
     return normalized
+
+
+def _parse_contact(raw: str) -> tuple[str, str]:
+    value = str(raw or "").strip()
+    if not value:
+        raise ValueError("Contact number is required.")
+    digits_only = re.sub(r"\D", "", value)
+    if not value.startswith("+") and len(digits_only) != 10:
+        raise ValueError("Contact number must include a country code and a 10-digit phone number.")
+    if re.fullmatch(r"\d{10}", value):
+        return DEFAULT_COUNTRY_CODE, value
+    compact = re.sub(r"[\s()-]", "", value)
+    if not re.fullmatch(r"\+\d{11,13}", compact):
+        raise ValueError("Contact number must include a country code and a 10-digit phone number.")
+    digits = compact[1:]
+    for cc_len in range(1, 4):
+        if len(digits) - cc_len == 10:
+            return f"+{digits[:cc_len]}", digits[cc_len:]
+    raise ValueError("Contact number must include a valid country code and a 10-digit phone number.")
 
 
 def combine_contact_number(country_code: Optional[str], number: str) -> str:
@@ -81,43 +100,18 @@ def normalize_contact_number(contact_number: str) -> str:
     digits_only = re.sub(r"\D", "", raw_value)
     if raw_value and not raw_value.startswith("+") and len(digits_only) != 10:
         return raw_value
-    if re.fullmatch(r"\d{10}", raw_value):
-        return f"{DEFAULT_COUNTRY_CODE}{raw_value}"
-    compact = re.sub(r"[\s()-]", "", raw_value)
-    if not re.fullmatch(r"\+\d{11,14}", compact):
-        raise ValueError("Contact number must include a country code and a 10-digit phone number.")
-    country_code = None
-    local_number = None
-    digits = compact[1:]
-    for code_length in range(1, 5):
-        if len(digits) <= code_length:
-            continue
-        candidate_code = f"+{digits[:code_length]}"
-        candidate_number = digits[code_length:]
-        if len(candidate_number) == 10:
-            country_code = candidate_code
-            local_number = candidate_number
-            break
-    if country_code is None or local_number is None:
-        raise ValueError("Contact number must include a valid country code and a 10-digit phone number.")
-    return combine_contact_number(country_code, local_number)
+    cc, num = _parse_contact(raw_value)
+    return f"{cc}{num}"
 
 
 def split_contact_number(contact_number: Optional[str]) -> tuple[str, str]:
     raw_value = (contact_number or "").strip()
     if not raw_value:
         return DEFAULT_COUNTRY_CODE, ""
-    if re.fullmatch(r"\d{10}", raw_value):
-        return DEFAULT_COUNTRY_CODE, raw_value
-    compact = re.sub(r"[\s()-]", "", raw_value)
-    digits = compact[1:] if compact.startswith("+") else compact
-    for code_length in range(1, 5):
-        if len(digits) <= code_length:
-            continue
-        local_number = digits[code_length:]
-        if len(local_number) == 10:
-            return f"+{digits[:code_length]}", local_number
-    return DEFAULT_COUNTRY_CODE, re.sub(r"\D", "", raw_value)[-10:]
+    try:
+        return _parse_contact(raw_value)
+    except ValueError:
+        return DEFAULT_COUNTRY_CODE, re.sub(r"\D", "", raw_value)[-10:]
 
 
 def derive_tournament_status(start_date: date, end_date: date) -> str:
