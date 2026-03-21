@@ -2,7 +2,7 @@
 ────────────────────────────────────────────────────────────
 GET /api/members [admin]
 ────────────────────────────────────────────────────────────
-  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=20 | Extra=None
+  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=23 | Extra=None
 
 ────────────────────────────────────────────────────────────
 GET /api/members/1 [admin]

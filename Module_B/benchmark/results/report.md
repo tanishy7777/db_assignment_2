@@ -4,11 +4,11 @@
 
 | Endpoint | Before mean | After mean | Before p95 | After p95 | Δ p95 (ms) |
 |----------|-------------|------------|------------|-----------|------------|
-| `GET /admin/verify-audit` | 30.48 | 32.64 | 34.88 | 34.84 | +0.04 |
-| `GET /api/members/1 [admin]` | 8.16 | 6.27 | 11.29 | 7.83 | +3.46 |
-| `GET /api/members [admin]` | 6.62 | 8.9 | 10.4 | 14.44 | -4.04 |
-| `GET /api/teams/1 [admin]` | 7.37 | 5.95 | 10.12 | 8.7 | +1.42 |
-| `GET /api/equipment [admin]` | 8.28 | 5.06 | 9.88 | 6.07 | +3.81 |
+| `GET /admin/verify-audit` | 39.8 | 35.44 | 43.43 | 38.97 | +4.46 |
+| `GET /api/events?tournament_id=1` | 6.75 | 5.74 | 9.84 | 8.02 | +1.82 |
+| `GET /api/members [coach]` | 6.79 | 5.84 | 9.5 | 9.48 | +0.02 |
+| `GET /api/performance-logs [admin]` | 6.83 | 5.86 | 9.46 | 7.22 | +2.24 |
+| `GET /api/members [admin]` | 7.0 | 5.65 | 8.91 | 7.32 | +1.59 |
 
 ## EXPLAIN Access Plan Changes
 
@@ -102,11 +102,11 @@
 
 **Before:**
 ```
-  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=20 | Extra=None
+  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=23 | Extra=None
 ```
 **After:**
 ```
-  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=20 | Extra=None
+  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=23 | Extra=None
 ```
 
 ### `GET /api/members/1 [admin]`
