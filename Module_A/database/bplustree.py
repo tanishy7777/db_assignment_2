@@ -290,14 +290,22 @@ class TreeVisualizer:
 
             if node.keys:
                 if node.is_leaf:
-                    label = " | ".join(f"{k}:{v}" for k, v in zip(node.keys, node.values))
+                    def fmt(k, v):
+                        if isinstance(v, dict):
+                            # Show only key fields, escape special chars
+                            v_str = " | ".join(f"{col}: {val}" for col, val in v.items())
+                            v_str = v_str.replace("{", "").replace("}", "").replace("|", "/")
+                        else:
+                            v_str = str(v)
+                        return f"{k}: {v_str}"
+                    label = "\n".join(fmt(k, v) for k, v in zip(node.keys, node.values))
                 else:
                     label = " | ".join(str(k) for k in node.keys)
             else:
                 label = "Empty"
 
             if node.is_leaf:
-                dot.node(curr_id, label=label, shape="record", style="filled", fillcolor="lightgreen")
+                dot.node(curr_id, label=label, shape="box", style="filled", fillcolor="lightgreen")
             else:
                 dot.node(curr_id, label=label, shape="record", style="filled", fillcolor="lightblue")
 
