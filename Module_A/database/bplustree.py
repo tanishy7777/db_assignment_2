@@ -289,7 +289,10 @@ class TreeVisualizer:
             node_id[0] += 1
 
             if node.keys:
-                label = " | ".join(str(k) for k in node.keys)
+                if node.is_leaf:
+                    label = " | ".join(f"{k}:{v}" for k, v in zip(node.keys, node.values))
+                else:
+                    label = " | ".join(str(k) for k in node.keys)
             else:
                 label = "Empty"
 
