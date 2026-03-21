@@ -1,14 +1,31 @@
+import os
 from bplustree import BPlusTree
 
-bptree = BPlusTree(order=4)
 
-keys = [
-    15, 3, 7, 20, 25, 1, 5, 30, 10, 12,
-    8, 6, 18, 22, 27, 35, 40, 50, 2, 4,
-    9, 11, 13, 14, 16, 17, 19, 21, 23, 24
-]
+def run_demo():
+    bpt = BPlusTree(order=4)
 
-for k in keys:
-    bptree.insert(k, f"val_{k}")
+    os.makedirs("../images", exist_ok=True)
 
-bptree.visualize("tree_output")
+    insert_keys = [10, 20, 5, 6, 12, 30, 7, 17, 3, 25, 15]
+
+    for key in insert_keys:
+        bpt.insert(key, f"val{key}")
+        print(f"Inserted {key}")
+
+    insert_path = "../images/tree_after_inserts"
+    bpt.visualize_tree(insert_path)
+    print(f"Saved: {insert_path}.png")
+
+    delete_keys = [6, 7, 5, 10, 12]
+    for i, key in enumerate(delete_keys):
+        bpt.delete(key)
+        print(f"Deleted {key}")
+
+        path = f"../images/tree_delete_step_{i+1}"
+        bpt.visualize_tree(path)
+        print(f"Saved: {path}.png")
+
+
+if __name__ == "__main__":
+    run_demo()

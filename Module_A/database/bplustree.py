@@ -112,6 +112,15 @@ class BPlusTree:
         if not self._delete(curr, key):
             return False
 
+        if curr.keys:
+            new_first = curr.keys[0]
+
+            for parent, idx in reversed(path):
+                if idx > 0:
+                    parent.keys[idx - 1] = new_first
+                else:
+                    break
+
         while len(curr.keys) < self.min_keys:
             if not path:
                 if not curr.is_leaf and len(curr.keys) == 0:
