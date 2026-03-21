@@ -115,8 +115,6 @@ def get_member_portfolio(
 ):
     ip = request.client.host if request.client else "unknown"
     member = _get_member_or_404(track_db, member_id)
-    member_role = track_db.execute("SELECT Role FROM Member WHERE MemberID = %s", (member_id,))
-    member_role = track_db.fetchone()
     if not _can_view_member(current_user, member["Role"], member_id):
         write_audit_log(
             auth_db, current_user["user_id"], current_user["username"],
@@ -128,7 +126,7 @@ def get_member_portfolio(
     teams = []
     perf_logs = []
     medical = []
-    if member_role["Role"] == "Player":
+    if member["Role"] == "Player":
         track_db.execute(
             """
             SELECT t.TeamID, t.TeamName, tm.Position, tm.IsCaptain, s.SportName
@@ -140,7 +138,7 @@ def get_member_portfolio(
             (member_id,),
         )
         teams = track_db.fetchall()
-    elif member_role["Role"] == "Coach":
+    elif member["Role"] == "Coach":
         track_db.execute(
             """
             SELECT t.TeamID, t.TeamName, s.SportName
@@ -200,10 +198,10 @@ def get_member_portfolio(
         auth_db, current_user["user_id"], current_user["username"],
         "SELECT", "Member", str(member_id), "SUCCESS", None, ip,
     )
-    if (member_role["Role"] == "Player"): 
+    if (member["Role"] == "Player"): 
         return {
             "success": True,
-            "role": member_role["Role"],
+            "role": member["Role"],
             "data": {
                 "member":       member,
                 "teams":        teams,
@@ -214,7 +212,7 @@ def get_member_portfolio(
     else:
         return {
             "success": True,
-            "role": member_role["Role"],
+            "role": member["Role"],
             "data": {
                 "member":       member,
                 "teams":        teams,

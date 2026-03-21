@@ -1,38 +1,38 @@
 {
   "results": {
-    "GET /api/members/1 [admin]": {
-      "min": 8.01,
-      "mean": 12.11,
-      "p95": 16.75,
-      "max": 18.37,
+    "GET /api/members [admin]": {
+      "min": 5.51,
+      "mean": 8.9,
+      "p95": 14.44,
+      "max": 22.16,
       "errors": 0
     },
-    "GET /api/members/1 [coach]": {
-      "min": 11.45,
-      "mean": 16.61,
-      "p95": 20.75,
-      "max": 22.34,
+    "GET /api/members/1 [admin]": {
+      "min": 5.04,
+      "mean": 6.27,
+      "p95": 7.83,
+      "max": 8.06,
       "errors": 0
     },
     "GET /api/teams/1 [admin]": {
-      "min": 10.48,
-      "mean": 15.92,
-      "p95": 19.15,
-      "max": 19.39,
+      "min": 4.41,
+      "mean": 5.95,
+      "p95": 8.7,
+      "max": 9.84,
       "errors": 0
     },
-    "GET /api/events [admin]": {
-      "min": 8.9,
-      "mean": 12.91,
-      "p95": 15.8,
-      "max": 17.69,
+    "GET /api/equipment [admin]": {
+      "min": 4.39,
+      "mean": 5.06,
+      "p95": 6.07,
+      "max": 7.01,
       "errors": 0
     },
     "GET /admin/verify-audit": {
-      "min": 31.21,
-      "mean": 37.71,
-      "p95": 60.56,
-      "max": 62.04,
+      "min": 29.13,
+      "mean": 32.64,
+      "p95": 34.84,
+      "max": 36.11,
       "errors": 0
     }
   },
@@ -48,7 +48,7 @@
         "key": "PRIMARY",
         "key_len": "4",
         "ref": null,
-        "rows": 21,
+        "rows": 20,
         "filtered": 100.0,
         "Extra": null
       }

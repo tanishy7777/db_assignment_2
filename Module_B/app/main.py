@@ -16,6 +16,7 @@ from app.routers.medical import router as medical_router
 from app.routers.admin import router as admin_router
 from app.routers.registration import router as registration_router
 from app.ui.routes import router as ui_router
+from app.middleware import RefreshCookieMiddleware
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -33,6 +34,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Olympia Track", version="1.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(RefreshCookieMiddleware)
 
 app.include_router(auth_router,        prefix="/auth",                  tags=["auth"])
 

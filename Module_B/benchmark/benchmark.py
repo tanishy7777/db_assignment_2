@@ -27,7 +27,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 RESULTS_DIR.mkdir(exist_ok=True)
 
-DB_CONFIG = dict(host="127.0.0.1", user="olympia_app", password="olympia_pass")
+DB_CONFIG = dict(host="127.0.0.1", user="olympia_app", password="root")
 
 CREDENTIALS = {
     "admin":  {"username": "vikram_admin",  "password": "admin123"},

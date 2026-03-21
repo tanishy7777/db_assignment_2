@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime, timedelta, timezone
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -6,8 +5,8 @@ from app.limiter import limiter
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from app.auth.dependencies import get_current_user, _hash_token
-from app.auth.jwt_handler import create_token
-from app.config import JWT_EXPIRY_HOURS, SECURE_COOKIES
+from app.auth.jwt_handler import create_access_token, create_refresh_token
+from app.config import JWT_EXPIRY_HOURS, ACCESS_TOKEN_EXPIRY_MINUTES, SECURE_COOKIES
 from app.database import get_auth_db
 from app.services.audit import write_audit_log
 
@@ -46,13 +45,16 @@ def login(
             str(user["user_id"]), "FAILURE", {"reason": "wrong password"}, ip,
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_token(
+
+    access = create_access_token(
         user["user_id"], user["username"], user["role"], user["member_id"]
     )
+    refresh = create_refresh_token(user["user_id"])
+
     expires_at = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS)
     db.execute(
         "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
-        (user["user_id"], _hash_token(token), expires_at),
+        (user["user_id"], _hash_token(refresh), expires_at),
     )
     write_audit_log(
         db, user["user_id"], user["username"], "LOGIN", "sessions",
@@ -60,7 +62,15 @@ def login(
     )
     response.set_cookie(
         key="access_token",
-        value=token,
+        value=access,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRY_MINUTES * 60,
+        samesite="lax",
+        secure=SECURE_COOKIES,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh,
         httponly=True,
         max_age=JWT_EXPIRY_HOURS * 3600,
         samesite="lax",
@@ -86,17 +96,19 @@ def logout(
     db=Depends(get_auth_db),
 ):
     ip = request.client.host if request.client else "unknown"
-    token = request.cookies.get("access_token", "")
-    db.execute(
-        "UPDATE sessions SET is_revoked = TRUE WHERE token_hash = %s",
-        (_hash_token(token),),
-    )
+    refresh = request.cookies.get("refresh_token")
+    if refresh:
+        db.execute(
+            "UPDATE sessions SET is_revoked = TRUE WHERE token_hash = %s",
+            (_hash_token(refresh),),
+        )
     write_audit_log(
         db, current_user["user_id"], current_user["username"],
         "LOGOUT", "sessions", str(current_user["user_id"]), "SUCCESS", None, ip,
     )
     resp = RedirectResponse(url="/ui/login", status_code=303)
     resp.delete_cookie("access_token")
+    resp.delete_cookie("refresh_token")
     return resp
 
 

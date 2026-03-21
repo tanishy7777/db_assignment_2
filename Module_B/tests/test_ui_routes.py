@@ -63,6 +63,7 @@ def test_login_members_and_teams_ui_routes_delegate_to_api(monkeypatch, admin_us
         calls,
         result={
             "success": True,
+            "role": "Player",
             "data": {
                 "member": {
                     "MemberID": 1,

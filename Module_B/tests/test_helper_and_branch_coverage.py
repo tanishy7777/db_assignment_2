@@ -69,11 +69,15 @@ def test_validation_helpers_cover_core_branches():
 
 def test_database_cursor_helper_commits_and_rolls_back():
     from app import database
+    orig_secret = database._api_secret
+    database._api_secret = None
     class FakeCursor:
         def __init__(self, with_rows):
             self.with_rows = with_rows
             self.closed = False
             self.fetchall_called = False
+        def execute(self, query, params=None):
+            pass
         def fetchall(self):
             self.fetchall_called = True
             return []
@@ -126,23 +130,25 @@ def test_database_cursor_helper_commits_and_rolls_back():
     next(track_gen)
     with pytest.raises(StopIteration):
         next(track_gen)
+    database._api_secret = orig_secret
 
 
 def test_auth_dependency_get_current_user_branches(monkeypatch):
     from app.auth import dependencies
+    req = make_request("/test")
+    # No tokens at all → 401
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(dependencies.get_current_user(access_token=None, db=ScriptedDB()))
+        asyncio.run(dependencies.get_current_user(request=req, access_token=None, db=ScriptedDB()))
     assert exc_info.value.status_code == 401
+    # Bad access token → 401 "Invalid token"
     monkeypatch.setattr(dependencies, "decode_token", lambda _token: (_ for _ in ()).throw(Exception("bad token")))
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(dependencies.get_current_user(access_token="abc", db=ScriptedDB()))
-    assert exc_info.value.detail == "Invalid or expired token"
-    monkeypatch.setattr(dependencies, "decode_token", lambda _token: {"user_id": 1, "username": "admin", "role": "Admin", "member_id": 1})
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(dependencies.get_current_user(access_token="abc", db=ScriptedDB(fetchone_values=[{"is_revoked": True}])))
-    assert "revoked" in exc_info.value.detail.lower()
+        asyncio.run(dependencies.get_current_user(request=req, access_token="abc", db=ScriptedDB()))
+    assert exc_info.value.detail == "Invalid token"
+    # Valid access token with type=access → returns payload directly
+    monkeypatch.setattr(dependencies, "decode_token", lambda _token: {"user_id": 1, "username": "admin", "role": "Admin", "member_id": 1, "type": "access"})
     result = asyncio.run(
-        dependencies.get_current_user(access_token="abc", db=ScriptedDB(fetchone_values=[{"is_revoked": False}]))
+        dependencies.get_current_user(request=req, access_token="valid", db=ScriptedDB())
     )
     assert result["username"] == "admin"
     assert len(dependencies._hash_token("abc")) == 64
@@ -401,7 +407,7 @@ def test_id_generation_auth_router_and_jwt_branches(monkeypatch):
             ),
         )
     assert exc_info.value.status_code == 401
-    token = jwt_handler.create_token(1, "admin", "Admin", 1)
+    token = jwt_handler.create_access_token(1, "admin", "Admin", 1)
     payload = jwt_handler.decode_token(token)
     assert payload["username"] == "admin"
     assert payload["member_id"] == 1
@@ -622,7 +628,7 @@ def test_member_and_team_ui_error_branches(monkeypatch, admin_user, coach_user):
                 form_data={"team_name": "Sprinters", "sport_id": "1", "coach_id": "2", "captain_id": "1", "formed_date": "2024-01-01", "member_ids": ["x"]},
             ),
             admin_user,
-            GuardDB(allowed_substrings=()),
+            ScriptedDB(fetchall_values=[[]]),
             GuardDB(allowed_substrings=()),
         )
     )
@@ -667,7 +673,7 @@ def test_member_and_team_ui_error_branches(monkeypatch, admin_user, coach_user):
                 form_data={"team_name": "Sprinters", "sport_id": "1", "coach_id": "2", "captain_id": "1", "formed_date": "2024-01-01", "member_ids": ["1"]},
             ),
             admin_user,
-            GuardDB(allowed_substrings=()),
+            ScriptedDB(fetchall_values=[[]]),
             GuardDB(allowed_substrings=()),
         )
     )
@@ -2064,6 +2070,7 @@ def test_ui_remaining_route_branches(monkeypatch, admin_user, coach_user, player
         "api_get_member_portfolio",
         lambda *args, **kwargs: {
             "success": True,
+            "role": "Player",
             "data": {
                 "member": {
                     "MemberID": 1,
@@ -2124,7 +2131,7 @@ def test_ui_remaining_route_branches(monkeypatch, admin_user, coach_user, player
         ui_routes.team_create(
             make_request("/ui/teams/new", method="POST", form_data={"team_name": "Sprinters", "sport_id": "x", "coach_id": "", "captain_id": "", "formed_date": "2024-01-01", "member_ids": ["1"]}),
             admin_user,
-            GuardDB(allowed_substrings=()),
+            ScriptedDB(fetchall_values=[[]]),
             GuardDB(allowed_substrings=()),
         )
     )
@@ -2134,7 +2141,7 @@ def test_ui_remaining_route_branches(monkeypatch, admin_user, coach_user, player
         ui_routes.team_create(
             make_request("/ui/teams/new", method="POST", form_data={"team_name": "Sprinters", "sport_id": "1", "coach_id": "", "captain_id": "", "formed_date": "2024-01-01", "member_ids": ["1"]}),
             admin_user,
-            GuardDB(allowed_substrings=()),
+            ScriptedDB(fetchall_values=[[]]),
             GuardDB(allowed_substrings=()),
         )
     )
@@ -2146,7 +2153,7 @@ def test_ui_remaining_route_branches(monkeypatch, admin_user, coach_user, player
         "api_get_team",
         lambda *args, **kwargs: {"success": True, "data": {"team": {"TeamID": 1, "TeamName": "Sprinters", "SportID": 1, "CoachID": 2, "CaptainID": 1, "FormedDate": None}, "roster": []}},
     )
-    response = ui_routes.team_edit_form(1, make_request("/ui/teams/1/edit"), admin_user, GuardDB(allowed_substrings=()), GuardDB(allowed_substrings=()))
+    response = ui_routes.team_edit_form(1, make_request("/ui/teams/1/edit"), admin_user, ScriptedDB(fetchall_values=[[]]), GuardDB(allowed_substrings=()))
     assert response.status_code == 200
     response = asyncio.run(
         ui_routes.team_edit_submit(
