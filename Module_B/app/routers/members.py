@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
-from app.auth.dependencies import get_current_user, require_admin, require_admin_or_coach
+from app.auth.dependencies import get_current_user, require_admin
 from app.database import get_auth_db, get_track_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
@@ -360,9 +360,7 @@ def delete_member(
     ip = request.client.host if request.client else "unknown"
     _ensure_admin(current_user)
     _get_member_or_404(track_db, member_id)
-    auth_db.execute(
-        "UPDATE users SET member_id = NULL WHERE member_id = %s", (member_id,)
-    )
+    auth_db.execute("DELETE FROM users WHERE member_id = %s", (member_id,))
     track_db.execute("DELETE FROM Member WHERE MemberID = %s", (member_id,))
     write_audit_log(
         auth_db, current_user["user_id"], current_user["username"],

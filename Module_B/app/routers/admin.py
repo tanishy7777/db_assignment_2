@@ -29,3 +29,19 @@ def verify_audit(
 ):
     result = verify_audit_chain(db)
     return {"success": True, "data": result}
+
+
+@router.get("/direct-modifications")
+def get_direct_modifications(
+    limit: int = 100,
+    current_user: dict = Depends(require_admin),
+    db=Depends(get_auth_db),
+):
+    db.execute(
+        "SELECT * FROM direct_modification_log ORDER BY id DESC LIMIT %s", (limit,)
+    )
+    rows = db.fetchall()
+    for row in rows:
+        if row.get("detected_at"):
+            row["detected_at"] = str(row["detected_at"])
+    return {"success": True, "data": rows, "count": len(rows)}

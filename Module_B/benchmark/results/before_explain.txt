@@ -1,7 +1,8 @@
+
 ────────────────────────────────────────────────────────────
 GET /api/members [admin]
 ────────────────────────────────────────────────────────────
-  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=19 | Extra=None
+  table=Member | type=index | possible_keys=None | key=PRIMARY | rows=21 | Extra=None
 
 ────────────────────────────────────────────────────────────
 GET /api/members/1 [admin]
@@ -21,14 +22,14 @@ GET /api/teams [admin]
 GET /api/events [admin]
 ────────────────────────────────────────────────────────────
   table=s | type=index | possible_keys=PRIMARY | key=SportName | rows=8 | Extra=Using index; Using temporary; Using filesort
-  table=e | type=ref | possible_keys=VenueID,SportID | key=SportID | rows=2 | Extra=None
+  table=e | type=ref | possible_keys=VenueID,idx_tmp_event_sportid | key=idx_tmp_event_sportid | rows=2 | Extra=None
   table=v | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
-  table=t | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
+  table=t | type=ALL | possible_keys=PRIMARY | key=None | rows=3 | Extra=Using where; Using join buffer (hash join)
 
 ────────────────────────────────────────────────────────────
 GET /api/events?tournament_id=1
 ────────────────────────────────────────────────────────────
-  table=e | type=ref | possible_keys=TournamentID,VenueID,SportID | key=TournamentID | rows=3 | Extra=Using filesort
+  table=e | type=ref | possible_keys=VenueID,idx_tmp_event_sportid,idx_tmp_event_tournid | key=idx_tmp_event_tournid | rows=3 | Extra=Using filesort
   table=t | type=const | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
   table=s | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
   table=v | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
@@ -37,20 +38,20 @@ GET /api/events?tournament_id=1
 GET /api/equipment/issues [admin]
 ────────────────────────────────────────────────────────────
   table=e | type=ALL | possible_keys=PRIMARY | key=None | rows=15 | Extra=Using temporary; Using filesort
-  table=ei | type=ref | possible_keys=EquipmentID,MemberID | key=EquipmentID | rows=1 | Extra=None
+  table=ei | type=ref | possible_keys=MemberID,idx_tmp_eqissue_eqid | key=idx_tmp_eqissue_eqid | rows=1 | Extra=None
   table=m | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
 
 ────────────────────────────────────────────────────────────
 GET /api/equipment/issues [player]
 ────────────────────────────────────────────────────────────
   table=m | type=const | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=Using filesort
-  table=ei | type=ref | possible_keys=EquipmentID,MemberID | key=MemberID | rows=3 | Extra=None
+  table=ei | type=ref | possible_keys=MemberID,idx_tmp_eqissue_eqid | key=MemberID | rows=5 | Extra=None
   table=e | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
 
 ────────────────────────────────────────────────────────────
 GET /api/performance-logs [admin]
 ────────────────────────────────────────────────────────────
-  table=pl | type=ALL | possible_keys=MemberID,SportID | key=None | rows=20 | Extra=Using filesort
+  table=pl | type=ALL | possible_keys=SportID,idx_tmp_perf_memberid | key=None | rows=20 | Extra=Using filesort
   table=s | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
   table=m | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
 
@@ -58,7 +59,7 @@ GET /api/performance-logs [admin]
 GET /api/performance-logs [coach]
 ────────────────────────────────────────────────────────────
   table=<subquery2> | type=ALL | possible_keys=None | key=None | rows=None | Extra=Using temporary; Using filesort
-  table=pl | type=ref | possible_keys=MemberID,SportID | key=MemberID | rows=1 | Extra=None
+  table=pl | type=ref | possible_keys=SportID,idx_tmp_perf_memberid | key=idx_tmp_perf_memberid | rows=1 | Extra=None
   table=s | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
   table=m | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
   table=t | type=ref | possible_keys=PRIMARY,CoachID | key=CoachID | rows=4 | Extra=Using index
@@ -68,7 +69,7 @@ GET /api/performance-logs [coach]
 GET /api/performance-logs [player]
 ────────────────────────────────────────────────────────────
   table=m | type=const | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=Using filesort
-  table=pl | type=ref | possible_keys=MemberID,SportID | key=MemberID | rows=6 | Extra=None
+  table=pl | type=ref | possible_keys=SportID,idx_tmp_perf_memberid | key=idx_tmp_perf_memberid | rows=6 | Extra=None
   table=s | type=eq_ref | possible_keys=PRIMARY | key=PRIMARY | rows=1 | Extra=None
 
 ────────────────────────────────────────────────────────────

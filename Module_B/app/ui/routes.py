@@ -8,7 +8,7 @@ import os
 from app.auth.dependencies import get_current_user
 from app.auth.router import LoginRequest, login as api_login
 from app.database import get_auth_db, get_track_db
-from app.routers.admin import get_audit_log as api_get_audit_log, verify_audit as api_verify_audit
+from app.routers.admin import get_audit_log as api_get_audit_log, verify_audit as api_verify_audit, get_direct_modifications as api_get_direct_modifications
 from app.routers.equipment import (
     EquipmentCreate,
     EquipmentUpdate,
@@ -1763,6 +1763,19 @@ def verify_audit(
     if current_user["role"] != "Admin":
         return {"error": "Unauthorized"}
     return api_verify_audit(current_user=current_user, db=auth_db)
+
+
+@router.get("/admin/direct-modifications", response_class=HTMLResponse)
+def direct_modifications_page(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/dashboard", status_code=303)
+    entries = api_get_direct_modifications(limit=100, current_user=current_user, db=auth_db)["data"]
+    return templates.TemplateResponse(request, "admin/direct_modifications.html",
+                                      _ctx(request, current_user, active="tamper", entries=entries))
 
 
 @router.get("/", response_class=HTMLResponse)

@@ -1,5 +1,8 @@
+import os
 import mysql.connector.pooling
 from app.config import DB_CONFIG_AUTH, DB_CONFIG_TRACK
+
+_api_secret = os.getenv("API_CONTEXT_SECRET")
 
 _auth_pool = mysql.connector.pooling.MySQLConnectionPool(
     pool_name="olympia_auth_pool",
@@ -17,6 +20,8 @@ _track_pool = mysql.connector.pooling.MySQLConnectionPool(
 def _get_cursor(pool):
     conn = pool.get_connection()
     cursor = conn.cursor(dictionary=True)
+    if _api_secret:
+        cursor.execute("SET @api_context = %s", (_api_secret,))
     try:
         yield cursor
         if cursor.with_rows:
