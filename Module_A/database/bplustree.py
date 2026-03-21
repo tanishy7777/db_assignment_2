@@ -24,12 +24,14 @@ class BPlusTree:
         return self._search(self.root, key)
 
     def _search(self, node, key):
-        """Helper function to recursively search for a key starting from the given node"""
+        """Helper function to search for a key starting from the given node"""
         curr = node
+        # Traverse down to the leaf
         while not curr.is_leaf:
             i = bisect_right(curr.keys, key)
             curr = curr.children[i]
 
+        # Binary search within the leaf node
         i = bisect_left(curr.keys, key)
         if i < len(curr.keys) and curr.keys[i] == key:
             return curr.values[i]
@@ -37,24 +39,30 @@ class BPlusTree:
 
     def insert(self, key, value):
         """Insert a new key-value pair into the B+ tree"""
+        # path acts as an iterative call stack here
         path = []
         curr = self.root
 
+        # Iterative descent to find the leaf:
         while not curr.is_leaf:
             i = bisect_right(curr.keys, key)
             path.append((curr, i))
             curr = curr.children[i]
 
+        # Insert at the leaf
         self._insert_non_full(curr, key, value)
 
+        # Iterative self-balancing:
         while len(curr.keys) >= self.order:
             if not path:
+                # Tree height increases when the root splits
                 new_root = BPlusTreeNode(is_leaf=False)
                 new_root.children.append(self.root)
                 self._split_child(new_root, 0)
                 self.root = new_root
                 break
 
+            # Propagate the split upwards to the parent node
             parent, p_idx = path.pop()
             self._split_child(parent, p_idx)
             curr = parent
@@ -81,6 +89,7 @@ class BPlusTree:
             del child.keys[mid:]
             del child.values[mid:]
 
+            # Maintain horizontal leaf-node linked list (for range queries)
             new_node.next = child.next
             child.next = new_node
 
@@ -88,6 +97,7 @@ class BPlusTree:
             parent.children.insert(index + 1, new_node)
 
         else:
+            # Internal nodes promote the middle key (without duplicating it)
             promote_key = child.keys[mid]
 
             new_node.keys = child.keys[mid + 1:]
@@ -104,32 +114,36 @@ class BPlusTree:
         path = []
         curr = self.root
 
+        # Iterative descent to find the leaf
         while not curr.is_leaf:
             i = bisect_right(curr.keys, key)
             path.append((curr, i))
             curr = curr.children[i]
 
+        # Delete the key
         if not self._delete(curr, key):
             return False
 
+        # If the first element of a leaf is deleted, we must update the parent's routing keys
+        # (so that internal searches still correctly point to this node)
         if curr.keys:
             new_first = curr.keys[0]
 
             for parent, idx in reversed(path):
                 if idx > 0:
                     parent.keys[idx - 1] = new_first
-                else:
-                    break
 
+        # Iterative self-balancing
         while len(curr.keys) < self.min_keys:
             if not path:
+                # Tree height decreases if the root internal node becomes completely empty
                 if not curr.is_leaf and len(curr.keys) == 0:
                     self.root = curr.children[0]
                 break
 
             parent, p_idx = path.pop()
             self._fill_child(parent, p_idx)
-            curr = parent
+            curr = parent  # Continue checking for underflow upwards
 
         return True
 
@@ -144,11 +158,13 @@ class BPlusTree:
 
     def _fill_child(self, parent, index):
         """Ensure that the child node has enough keys to allow safe deletion"""
+        # Borrow from siblings to avoid merge operations
         if index > 0 and len(parent.children[index - 1].keys) > self.min_keys:
             self._borrow_from_prev(parent, index)
         elif index < len(parent.children) - 1 and len(parent.children[index + 1].keys) > self.min_keys:
             self._borrow_from_next(parent, index)
         else:
+            # Merge if both siblings are exactly at min_keys
             if index > 0:
                 self._merge(parent, index - 1)
             else:
@@ -162,8 +178,9 @@ class BPlusTree:
         if child.is_leaf:
             child.keys.insert(0, sibling.keys.pop())
             child.values.insert(0, sibling.values.pop())
-            parent.keys[index - 1] = child.keys[0]
+            parent.keys[index - 1] = child.keys[0]  # Update routing key
         else:
+            # Internal node borrowing should pull the routing key down from the parent
             child.keys.insert(0, parent.keys[index - 1])
             parent.keys[index - 1] = sibling.keys.pop()
             child.children.insert(0, sibling.children.pop())
@@ -176,8 +193,9 @@ class BPlusTree:
         if child.is_leaf:
             child.keys.append(sibling.keys.pop(0))
             child.values.append(sibling.values.pop(0))
-            parent.keys[index] = sibling.keys[0]
+            parent.keys[index] = sibling.keys[0]  # Update routing key
         else:
+            # Internal node borrowing pushes a key up to the parent
             child.keys.append(parent.keys[index])
             parent.keys[index] = sibling.keys.pop(0)
             child.children.append(sibling.children.pop(0))
@@ -190,12 +208,14 @@ class BPlusTree:
         if left.is_leaf:
             left.keys.extend(right.keys)
             left.values.extend(right.values)
-            left.next = right.next
+            left.next = right.next  # Fix linked list by skipping the merged node
         else:
+            # When merging internal nodes, we should pull down the separating routing key
             left.keys.append(parent.keys[index])
             left.keys.extend(right.keys)
             left.children.extend(right.children)
 
+        # Remove the routing key and the right child pointer from the parent
         parent.keys.pop(index)
         parent.children.pop(index + 1)
 
@@ -222,6 +242,7 @@ class BPlusTree:
             return []
 
         curr = self.root
+        # Find the leaf containing the start boundary
         while not curr.is_leaf:
             i = bisect_right(curr.keys, start_key)
             curr = curr.children[i]
@@ -229,15 +250,16 @@ class BPlusTree:
         results = []
         i = bisect_left(curr.keys, start_key)
 
+        # Go through the linked list sequentially
         while curr is not None:
             while i < len(curr.keys):
                 k = curr.keys[i]
                 if k <= end_key:
                     results.append((k, curr.values[i]))
                 else:
-                    return results
+                    return results  # Finish early once out of bounds
                 i += 1
-            i = 0
+            i = 0  # Reset for future nodes
             curr = curr.next
 
         return results
@@ -251,9 +273,11 @@ class BPlusTree:
     def _get_all(self, node, result):
         """Helper function to gather all key-value pairs"""
         curr = node
+        # Go to the leftmost leaf
         while not curr.is_leaf:
             curr = curr.children[0]
 
+        # Go through the whole linked list
         while curr is not None:
             for i in range(len(curr.keys)):
                 result.append((curr.keys[i], curr.values[i]))
@@ -289,23 +313,12 @@ class TreeVisualizer:
             node_id[0] += 1
 
             if node.keys:
-                if node.is_leaf:
-                    def fmt(k, v):
-                        if isinstance(v, dict):
-                            # Show only key fields, escape special chars
-                            v_str = " | ".join(f"{col}: {val}" for col, val in v.items())
-                            v_str = v_str.replace("{", "").replace("}", "").replace("|", "/")
-                        else:
-                            v_str = str(v)
-                        return f"{k}: {v_str}"
-                    label = "\n".join(fmt(k, v) for k, v in zip(node.keys, node.values))
-                else:
-                    label = " | ".join(str(k) for k in node.keys)
+                label = " | ".join(str(k) for k in node.keys)
             else:
                 label = "Empty"
 
             if node.is_leaf:
-                dot.node(curr_id, label=label, shape="box", style="filled", fillcolor="lightgreen")
+                dot.node(curr_id, label=label, shape="record", style="filled", fillcolor="lightgreen")
             else:
                 dot.node(curr_id, label=label, shape="record", style="filled", fillcolor="lightblue")
 
