@@ -115,6 +115,8 @@ def get_member_portfolio(
 ):
     ip = request.client.host if request.client else "unknown"
     member = _get_member_or_404(track_db, member_id)
+    member_role = track_db.execute("SELECT Role FROM Member WHERE MemberID = %s", (member_id,))
+    member_role = track_db.fetchone()
     if not _can_view_member(current_user, member["Role"], member_id):
         write_audit_log(
             auth_db, current_user["user_id"], current_user["username"],
@@ -122,17 +124,33 @@ def get_member_portfolio(
             {"reason": "player accessing another member"}, ip,
         )
         raise HTTPException(status_code=403, detail="Access denied")
-    track_db.execute(
-        """
-        SELECT t.TeamID, t.TeamName, tm.Position, tm.IsCaptain, s.SportName
-        FROM TeamMember tm
-        JOIN Team t  ON tm.TeamID  = t.TeamID
-        JOIN Sport s ON t.SportID  = s.SportID
-        WHERE tm.MemberID = %s
-        """,
-        (member_id,),
-    )
-    teams = track_db.fetchall()
+    
+    teams = []
+    perf_logs = []
+    medical = []
+    if member_role["Role"] == "Player":
+        track_db.execute(
+            """
+            SELECT t.TeamID, t.TeamName, tm.Position, tm.IsCaptain, s.SportName
+            FROM TeamMember tm
+            JOIN Team t  ON tm.TeamID  = t.TeamID
+            JOIN Sport s ON t.SportID  = s.SportID
+            WHERE tm.MemberID = %s
+            """,
+            (member_id,),
+        )
+        teams = track_db.fetchall()
+    elif member_role["Role"] == "Coach":
+        track_db.execute(
+            """
+            SELECT t.TeamID, t.TeamName, s.SportName
+            FROM Team t
+            JOIN Sport s ON t.SportID = s.SportID
+            WHERE t.CoachID = %s
+            """,
+            (member_id,),
+        )
+        teams = track_db.fetchall()
     if current_user["role"] == "Admin":
         track_db.execute(
             """
@@ -182,15 +200,28 @@ def get_member_portfolio(
         auth_db, current_user["user_id"], current_user["username"],
         "SELECT", "Member", str(member_id), "SUCCESS", None, ip,
     )
-    return {
-        "success": True,
-        "data": {
-            "member":       member,
-            "teams":        teams,
-            "performance":  perf_logs,
-            "medical":      medical,
-        },
-    }
+    if (member_role["Role"] == "Player"): 
+        return {
+            "success": True,
+            "role": member_role["Role"],
+            "data": {
+                "member":       member,
+                "teams":        teams,
+                "performance":  perf_logs,
+                "medical":      medical,
+            },
+        }
+    else:
+        return {
+            "success": True,
+            "role": member_role["Role"],
+            "data": {
+                "member":       member,
+                "teams":        teams,
+                "performance":  perf_logs,
+                "medical":      medical,
+            },
+        }
 
 
 @router.post("")

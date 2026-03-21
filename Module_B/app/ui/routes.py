@@ -377,6 +377,7 @@ def member_create(
     return RedirectResponse(f"/ui/members/{res['data']['member_id']}", status_code=303)
 
 
+
 @router.get("/members/{member_id}", response_class=HTMLResponse)
 def member_portfolio(
     member_id: int,
@@ -389,11 +390,23 @@ def member_portfolio(
         res = api_get_member_portfolio(member_id, request, current_user, track_db, auth_db)
     except HTTPException:
         return RedirectResponse("/ui/members", status_code=303)
-    portfolio = res["data"]
-    member = portfolio["member"]
-    teams = portfolio["teams"]
-    performance = portfolio["performance"]
-    medical = portfolio["medical"]
+    if (res["role"] == "Player"):
+        portfolio = res["data"]
+        member = portfolio["member"]
+        teams = portfolio["teams"]
+        performance = portfolio["performance"]
+        medical = portfolio["medical"]
+    elif (res["role"] == "Coach"):
+        portfolio = res["data"]
+        member = portfolio["member"]
+        teams = portfolio["teams"]
+        performance = []
+        medical = []
+    else:
+        member = res["data"]["member"]
+        teams = []
+        performance = []
+        medical = []
     member["JoinDate"] = str(member["JoinDate"])
     for p in performance:
         p["RecordDate"] = str(p["RecordDate"])
@@ -408,6 +421,8 @@ def member_portfolio(
         member=member, teams=teams, performance=performance, medical=medical,
         sports=sports,
     ))
+
+
 
 
 @router.get("/members/{member_id}/edit", response_class=HTMLResponse)
