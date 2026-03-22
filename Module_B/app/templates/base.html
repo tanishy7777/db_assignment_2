@@ -10,7 +10,7 @@
 <body class="antialiased">
 <div class="wrapper">
 
-  <!-- Sidebar -->
+  
   <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
     <div class="container-fluid">
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
@@ -106,6 +106,16 @@
               <span class="nav-link-title">Audit Log</span>
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link {% if active == 'tamper' %}active{% endif %}" href="/ui/admin/direct-modifications">
+              <span class="nav-link-icon d-md-none d-lg-inline-block">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24"
+                     stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M12 9v2m0 4v.01"/><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.84 2.75z"/></svg>
+              </span>
+              <span class="nav-link-title">Tamper Detection</span>
+            </a>
+          </li>
           {% endif %}
 
         </ul>
@@ -124,7 +134,9 @@
             <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
               <a href="/ui/members/{{ current_user.member_id }}" class="dropdown-item">My Profile</a>
               <div class="dropdown-divider"></div>
-              <a href="/auth/logout" class="dropdown-item text-danger">Logout</a>
+              <form method="post" action="/auth/logout" style="margin:0">
+                <button type="submit" class="dropdown-item text-danger" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;">Logout</button>
+              </form>
             </div>
           </div>
         </div>
@@ -132,7 +144,7 @@
     </div>
   </aside>
 
-  <!-- Main content -->
+  
   <div class="page-wrapper">
     {% if flash %}
     <div class="container-xl pt-3">

@@ -64,7 +64,7 @@ document.getElementById('verify-btn').addEventListener('click', function() {
   const btn = this;
   btn.disabled = true;
   btn.textContent = 'Verifying…';
-  fetch('/admin/verify-audit')
+  fetch('/ui/admin/verify-audit', {method: 'POST'})
     .then(r => r.json())
     .then(data => {
       const div = document.getElementById('verify-result');

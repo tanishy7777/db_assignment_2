@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 
+env_path = ".env.example"
+
 load_dotenv()
 
 DB_CONFIG_AUTH = {
@@ -20,5 +22,11 @@ DB_CONFIG_TRACK = {
 }
 
 JWT_SECRET       = os.getenv("JWT_SECRET", "change-me")
+
 JWT_EXPIRY_HOURS = int(os.getenv("JWT_EXPIRY_HOURS", 8))
+
 ALGORITHM        = "HS256"
+
+SECURE_COOKIES   = os.getenv("SECURE_COOKIES", "false").lower() == "true"
+
+ACCESS_TOKEN_EXPIRY_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRY_MINUTES", 15))

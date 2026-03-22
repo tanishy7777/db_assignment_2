@@ -1,26 +1,107 @@
-from fastapi import APIRouter, Depends, Request, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 from urllib.parse import quote_plus
+from datetime import date
 import os
+from app.auth.dependencies import get_current_user
+from app.auth.router import LoginRequest, login as api_login
+from app.database import get_auth_db, get_track_db, get_cross_db
+from app.routers.admin import get_audit_log as api_get_audit_log, verify_audit as api_verify_audit, get_direct_modifications as api_get_direct_modifications
+from app.routers.equipment import (
+    EquipmentCreate,
+    EquipmentUpdate,
+    create_equipment as api_create_equipment,
+    delete_equipment as api_delete_equipment,
+    get_equipment as api_get_equipment,
+    IssueCreate,
+    issue_equipment as api_issue_equipment,
+    list_equipment as api_list_equipment,
+    list_issues as api_list_issues,
+    return_equipment as api_return_equipment,
+    update_equipment as api_update_equipment,
+)
 
-from app.auth.dependencies import get_current_user, _hash_token
-from app.auth.jwt_handler import create_token
-from app.config import JWT_EXPIRY_HOURS
-from app.database import get_auth_db, get_track_db
-from app.services.audit import write_audit_log, verify_audit_chain
+from app.routers.events import (
+    EventCreate,
+    EventUpdate,
+    ParticipationUpdate,
+    create_event as api_create_event,
+    delete_event as api_delete_event,
+    get_event as api_get_event,
+    get_event_form_options as api_get_event_form_options,
+    list_events as api_list_events,
+    update_event as api_update_event,
+    update_participation as api_update_participation,
+)
 
-import bcrypt
-from datetime import datetime, timedelta, timezone
+from app.routers.medical import (
+    MedicalCreate,
+    MedicalUpdate,
+    create_medical_record as api_create_medical_record,
+    delete_medical_record as api_delete_medical_record,
+    get_medical_record as api_get_medical_record,
+    update_medical_record as api_update_medical_record,
+)
+
+from app.routers.members import (
+    MemberCreate,
+    MemberUpdate,
+    create_member as api_create_member,
+    delete_member as api_delete_member,
+    get_member_portfolio as api_get_member_portfolio,
+    list_members as api_list_members,
+    update_member as api_update_member,
+)
+
+from app.routers.performance import (
+    PerfLogCreate,
+    PerfLogUpdate,
+    create_performance_log as api_create_performance_log,
+    delete_performance_log as api_delete_performance_log,
+    get_performance_log as api_get_performance_log,
+    update_performance_log as api_update_performance_log,
+)
+
+from app.routers.registration import (
+    add_team_to_event as api_add_team_to_event,
+    register_team_for_tournament as api_register_team_for_tournament,
+    remove_team_from_event as api_remove_team_from_event,
+    unregister_team_from_tournament as api_unregister_team_from_tournament,
+)
+
+from app.routers.teams import (
+    TeamCreate,
+    TeamMemberEntry,
+    TeamUpdate,
+    create_team as api_create_team,
+    delete_team as api_delete_team,
+    get_team as api_get_team,
+    list_teams as api_list_teams,
+    update_team as api_update_team,
+)
+
+from app.routers.tournaments import (
+    TournamentCreate,
+    TournamentUpdate,
+    create_tournament as api_create_tournament,
+    delete_tournament as api_delete_tournament,
+    get_tournament as api_get_tournament,
+    list_tournaments as api_list_tournaments,
+    update_tournament as api_update_tournament,
+)
+
+from app.services.validation import COMMON_COUNTRY_CODES, combine_contact_number, split_contact_number
 
 router = APIRouter()
+
 _tmpl_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
+
 templates = Jinja2Templates(directory=os.path.abspath(_tmpl_dir))
 
 
 def _ctx(request: Request, current_user: dict, **extra):
-    """Build a base template context dict. Reads ?success= and ?error= for flash toasts."""
     flash = None
     success_msg = request.query_params.get("success")
     error_msg = request.query_params.get("error")
@@ -31,18 +112,92 @@ def _ctx(request: Request, current_user: dict, **extra):
     return {"request": request, "current_user": current_user, "flash": flash, **extra}
 
 
-def _flash_redirect(url: str, error: str = None, success: str = None) -> RedirectResponse:
-    """Redirect with a flash message encoded as a query param."""
+def _flash_redirect(url: str, error: Optional[str] = None, success: Optional[str] = None) -> RedirectResponse:
     msg = error or success
     key = "error" if error else "success"
-    return RedirectResponse(f"{url}?{key}={quote_plus(msg)}", status_code=303)
+    return RedirectResponse(f"{url}?{key}={quote_plus(msg or '')}", status_code=303)
 
 
-# ── Auth ───────────────────────────────────────────────────────────────────────
+def _copy_set_cookie(source: Response, target: RedirectResponse) -> None:
+    for header_name, header_value in source.raw_headers:
+        if header_name.lower() == b"set-cookie":
+            target.headers.append("set-cookie", header_value.decode("latin-1"))
+
+
+def _get_event_lookups(request: Request, current_user: dict, track_db, auth_db) -> dict:
+    return api_get_event_form_options(request, current_user, track_db, auth_db)["data"]
+
+
+def _get_sports(track_db):
+    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+    return track_db.fetchall()
+
+
+def _equipment_form_data(
+    equipment_name: str = "",
+    total_quantity: Optional[int] = None,
+    equipment_condition: str = "New",
+    sport_id: Optional[int] = None,
+):
+    return {
+        "equipment_name": equipment_name,
+        "total_quantity": total_quantity,
+        "equipment_condition": equipment_condition,
+        "sport_id": sport_id,
+    }
+
+
+def _parse_required_int(value, label: str) -> int:
+    value = (value or "").strip()
+    if not value:
+        raise ValueError(f"{label} is required.")
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be a valid integer.") from exc
+
+
+def _parse_optional_int(value, label: str) -> Optional[int]:
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be a valid integer.") from exc
+
+
+def _parse_members(form) -> list[TeamMemberEntry]:
+    raw_ids = form.getlist("member_ids")
+    raw_positions = form.getlist("member_positions")
+    members = []
+    for i, raw_id in enumerate(raw_ids):
+        value = raw_id.strip()
+        if not value:
+            continue
+        try:
+            member_id = int(value)
+        except ValueError as exc:
+            raise ValueError("Each member ID must be a valid integer.") from exc
+        position = raw_positions[i].strip() if i < len(raw_positions) and raw_positions[i].strip() else None
+        members.append(TeamMemberEntry(member_id=member_id, position=position))
+    return members
+
+
+def _member_form_defaults(member=None, form_data=None) -> dict:
+    prepared = dict(form_data or {})
+    if "ContactCountryCode" in prepared and "ContactNumberLocal" in prepared:
+        return prepared
+    existing_contact = prepared.get("ContactNumber") or (member["ContactNumber"] if member else None)
+    country_code, local_number = split_contact_number(existing_contact)
+    prepared.setdefault("ContactCountryCode", country_code)
+    prepared.setdefault("ContactNumberLocal", local_number)
+    return prepared
+
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("auth/login.html", {"request": request})
+    return templates.TemplateResponse(request, "auth/login.html", {"request": request})
 
 
 @router.post("/login")
@@ -52,39 +207,19 @@ def login_submit(
     password: str = Form(...),
     db=Depends(get_auth_db),
 ):
-    ip = request.client.host if request.client else "unknown"
-    db.execute(
-        "SELECT user_id, username, password_hash, role, member_id, is_active "
-        "FROM users WHERE username = %s",
-        (username,),
-    )
-    user = db.fetchone()
-
-    if not user or not user["is_active"] or \
-       not bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
-        write_audit_log(db, None, username, "LOGIN", "users", None,
-                        "FAILURE", {"reason": "bad credentials"}, ip)
+    api_response = Response()
+    try:
+        api_login(LoginRequest(username=username, password=password), request, api_response, db)
+    except HTTPException:
         return templates.TemplateResponse(
+            request,
             "auth/login.html",
             {"request": request, "error": "Invalid username or password", "username": username},
         )
-
-    token = create_token(user["user_id"], user["username"], user["role"], user["member_id"])
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS)
-    db.execute(
-        "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
-        (user["user_id"], _hash_token(token), expires_at),
-    )
-    write_audit_log(db, user["user_id"], user["username"], "LOGIN", "sessions",
-                    str(user["user_id"]), "SUCCESS", None, ip)
-
     resp = RedirectResponse(url="/ui/dashboard", status_code=303)
-    resp.set_cookie("access_token", token, httponly=True,
-                    max_age=JWT_EXPIRY_HOURS * 3600, samesite="lax")
+    _copy_set_cookie(api_response, resp)
     return resp
 
-
-# ── Dashboard ──────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard(
@@ -96,22 +231,18 @@ def dashboard(
     members = track_db.fetchone()["c"]
     track_db.execute("SELECT Role, COUNT(*) AS c FROM Member GROUP BY Role")
     roles = {r["Role"]: r["c"] for r in track_db.fetchall()}
-
     track_db.execute("SELECT COUNT(*) AS c FROM Team")
     teams = track_db.fetchone()["c"]
     track_db.execute("SELECT COUNT(DISTINCT SportID) AS c FROM Team")
     sports = track_db.fetchone()["c"]
-
     track_db.execute("SELECT COUNT(*) AS c FROM Event WHERE Status='Scheduled'")
     upcoming = track_db.fetchone()["c"]
     track_db.execute("SELECT COUNT(*) AS c FROM Event WHERE Status='Ongoing'")
     ongoing = track_db.fetchone()["c"]
-
     track_db.execute("SELECT COUNT(*) AS c FROM Equipment")
     equip = track_db.fetchone()["c"]
     track_db.execute("SELECT COUNT(*) AS c FROM EquipmentIssue WHERE ReturnDate IS NULL")
     unreturned = track_db.fetchone()["c"]
-
     track_db.execute(
         """
         SELECT e.EventID, e.EventName, e.EventDate, e.Status, v.VenueName
@@ -123,13 +254,12 @@ def dashboard(
     recent_events = track_db.fetchall()
     for ev in recent_events:
         ev["EventDate"] = str(ev["EventDate"])
-
-    track_db.execute("SELECT TournamentName, Status, EndDate FROM Tournament ORDER BY StartDate DESC")
+    track_db.execute("SELECT TournamentName, Status, EndDate FROM Tournament "
+            "WHERE Status = 'Upcoming' or Status = 'Ongoing' ORDER BY StartDate DESC")
     tournaments = track_db.fetchall()
     for t in tournaments:
         t["EndDate"] = str(t["EndDate"])
-
-    return templates.TemplateResponse("dashboard.html", _ctx(
+    return templates.TemplateResponse(request, "dashboard.html", _ctx(
         request, current_user,
         active="dashboard",
         stats={
@@ -144,24 +274,17 @@ def dashboard(
     ))
 
 
-# ── Members ────────────────────────────────────────────────────────────────────
-
 @router.get("/members", response_class=HTMLResponse)
 def members_list(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db)
 ):
-    if current_user["role"] == "Player":
-        track_db.execute("SELECT * FROM Member WHERE MemberID = %s",
-                         (current_user["member_id"],))
-    else:
-        track_db.execute("SELECT * FROM Member ORDER BY MemberID")
-    members = track_db.fetchall()
-    for m in members:
-        m["JoinDate"] = str(m["JoinDate"])
-    return templates.TemplateResponse("members/list.html",
-                                      _ctx(request, current_user, active="members", members=members))
+    res = api_list_members(request, current_user, track_db, auth_db)
+    if (res["success"]):
+        return templates.TemplateResponse(request, "members/list.html",
+                                      _ctx(request, current_user, active="members", members=res["data"]))
 
 
 @router.get("/members/new", response_class=HTMLResponse)
@@ -171,46 +294,97 @@ def member_new_form(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/members", status_code=303)
-    return templates.TemplateResponse("members/form.html",
-                                      _ctx(request, current_user, active="members", member=None, error=None))
+    return templates.TemplateResponse(request, "members/form.html",
+                                      _ctx(request, current_user, active="members",
+                                           member=None, form_data=_member_form_defaults(),
+                                           country_codes=COMMON_COUNTRY_CODES, error=None))
 
 
 @router.post("/members/new")
 def member_create(
     request: Request,
     current_user: dict = Depends(get_current_user),
-    track_db=Depends(get_track_db),
-    auth_db=Depends(get_auth_db),
-    member_id: int = Form(...),
+    cross_db=Depends(get_cross_db),
+    member_id: Optional[int] = Form(None),
     name: str = Form(...),
     email: str = Form(...),
     age: int = Form(...),
-    contact_number: str = Form(...),
+    contact_country_code: Optional[str] = Form(None),
+    contact_number: Optional[str] = Form(None),
+    contact_number_local: Optional[str] = Form(None),
     gender: str = Form(...),
     role: str = Form(...),
     join_date: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
+    image: Optional[str] = Form(None),
 ):
-    ip = request.client.host if request.client else "unknown"
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/members", status_code=303)
+    if not isinstance(member_id, int):
+        member_id = None
+    image = image.strip() if isinstance(image, str) and image.strip() else None
+    if not isinstance(contact_country_code, str):
+        contact_country_code = None
+    if not isinstance(contact_number_local, str):
+        contact_number_local = None
+    if not isinstance(contact_number, str):
+        contact_number = None
     try:
-        track_db.execute(
-            "INSERT INTO Member (MemberID,Name,Age,Email,ContactNumber,Gender,Role,JoinDate) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (member_id, name, age, email, contact_number, gender, role, join_date),
-        )
-        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        auth_db.execute(
-            "INSERT INTO users (username, password_hash, role, member_id) VALUES (%s,%s,%s,%s)",
-            (username, pw_hash, role, member_id),
-        )
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "INSERT", "Member", str(member_id), "SUCCESS", {"name": name}, ip)
-    except Exception as e:
-        return templates.TemplateResponse("members/form.html",
+        if contact_number_local is not None or contact_country_code is not None:
+            contact_value = combine_contact_number(contact_country_code, contact_number_local or contact_number or "")
+        else:
+            contact_value = contact_number or ""
+    except ValueError as exc:
+        form_data = _member_form_defaults(form_data={
+            "Name": name,
+            "Email": email,
+            "Age": age,
+            "Gender": gender,
+            "Role": role,
+            "JoinDate": join_date,
+            "Username": username,
+            "Image": image or "",
+            "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
+            "ContactNumberLocal": contact_number_local or contact_number or "",
+        })
+        return templates.TemplateResponse(request, "members/form.html",
                                           _ctx(request, current_user, active="members",
-                                               member=None, error=str(e)))
-    return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+                                               member=None, form_data=form_data,
+                                               country_codes=COMMON_COUNTRY_CODES, error=str(exc)))
+    mem = MemberCreate(
+        member_id=member_id,
+        name=name,
+        email=email,
+        age=age,
+        contact_number=contact_value,
+        gender=gender,
+        role=role,
+        join_date=join_date,
+        username=username,
+        password=password,
+        image=image,
+    )
+    res = api_create_member(mem, request, current_user, cross_db)
+    if not res["success"]:
+        form_data = _member_form_defaults(form_data={
+            "Name": name,
+            "Email": email,
+            "Age": age,
+            "Gender": gender,
+            "Role": role,
+            "JoinDate": join_date,
+            "Username": username,
+            "Image": image or "",
+            "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
+            "ContactNumberLocal": contact_number_local or contact_number or "",
+        })
+        return templates.TemplateResponse(request, "members/form.html",
+                                          _ctx(request, current_user, active="members",
+                                               member=None, form_data=form_data,
+                                               country_codes=COMMON_COUNTRY_CODES, error=res["message"]))
+    return RedirectResponse(f"/ui/members/{res['data']['member_id']}", status_code=303)
+
 
 
 @router.get("/members/{member_id}", response_class=HTMLResponse)
@@ -221,70 +395,61 @@ def member_portfolio(
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
 ):
-    ip = request.client.host if request.client else "unknown"
-    if current_user["role"] == "Player" and current_user["member_id"] != member_id:
-        return RedirectResponse(f"/ui/members/{current_user['member_id']}", status_code=303)
-
-    track_db.execute("SELECT * FROM Member WHERE MemberID = %s", (member_id,))
-    member = track_db.fetchone()
-    if not member:
+    try:
+        res = api_get_member_portfolio(member_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            return _flash_redirect("/ui/members", error="You are not authorized to view that member's profile.")
         return RedirectResponse("/ui/members", status_code=303)
+    if (res["role"] == "Player"):
+        portfolio = res["data"]
+        member = portfolio["member"]
+        teams = portfolio["teams"]
+        performance = portfolio["performance"]
+        medical = portfolio["medical"]
+    elif (res["role"] == "Coach"):
+        portfolio = res["data"]
+        member = portfolio["member"]
+        teams = portfolio["teams"]
+        performance = []
+        medical = []
+    else:
+        member = res["data"]["member"]
+        teams = []
+        performance = []
+        medical = []
     member["JoinDate"] = str(member["JoinDate"])
-
-    track_db.execute(
-        """
-        SELECT tm.*, t.TeamName, t.TeamID, s.SportName
-        FROM TeamMember tm JOIN Team t ON tm.TeamID=t.TeamID JOIN Sport s ON t.SportID=s.SportID
-        WHERE tm.MemberID=%s
-        """, (member_id,))
-    teams = track_db.fetchall()
-    for t in teams:
-        t["JoinDate"] = str(t["JoinDate"])
-
-    if current_user["role"] == "Admin":
-        track_db.execute(
-            "SELECT pl.*, s.SportName FROM PerformanceLog pl JOIN Sport s ON pl.SportID=s.SportID "
-            "WHERE pl.MemberID=%s ORDER BY pl.RecordDate DESC", (member_id,))
+    for p in performance:
+        p["RecordDate"] = str(p["RecordDate"])
+    for m2 in medical:
+        m2["DiagnosisDate"] = str(m2["DiagnosisDate"])
+        if m2.get("RecoveryDate"):
+            m2["RecoveryDate"] = str(m2["RecoveryDate"])
+    # determine whether the current user may see the medical section
+    if current_user["role"] == "Admin" or current_user["member_id"] == member_id:
+        can_view_medical = True
     elif current_user["role"] == "Coach":
         track_db.execute(
             """
-            SELECT pl.*, s.SportName FROM PerformanceLog pl JOIN Sport s ON pl.SportID=s.SportID
-            WHERE pl.MemberID=%s AND EXISTS (
-                SELECT 1 FROM TeamMember tm JOIN Team t ON tm.TeamID=t.TeamID
-                WHERE tm.MemberID=%s AND t.CoachID=%s)
-            ORDER BY pl.RecordDate DESC
-            """, (member_id, member_id, current_user["member_id"]))
-    elif current_user["member_id"] == member_id:
-        track_db.execute(
-            "SELECT pl.*, s.SportName FROM PerformanceLog pl JOIN Sport s ON pl.SportID=s.SportID "
-            "WHERE pl.MemberID=%s ORDER BY pl.RecordDate DESC", (member_id,))
+            SELECT 1 FROM TeamMember tm
+            JOIN Team t ON tm.TeamID = t.TeamID
+            WHERE tm.MemberID = %s AND t.CoachID = %s
+            LIMIT 1
+            """,
+            (member_id, current_user["member_id"]),
+        )
+        can_view_medical = track_db.fetchone() is not None
     else:
-        track_db.execute("SELECT 1 WHERE FALSE")
-    performance = track_db.fetchall()
-    for p in performance:
-        p["RecordDate"] = str(p["RecordDate"])
-
-    medical = []
-    if current_user["role"] == "Admin" or current_user["member_id"] == member_id:
-        track_db.execute(
-            "SELECT * FROM MedicalRecord WHERE MemberID=%s ORDER BY DiagnosisDate DESC", (member_id,))
-        medical = track_db.fetchall()
-        for m2 in medical:
-            m2["DiagnosisDate"] = str(m2["DiagnosisDate"])
-            if m2.get("RecoveryDate"):
-                m2["RecoveryDate"] = str(m2["RecoveryDate"])
-
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "SELECT", "Member", str(member_id), "SUCCESS", None, ip)
-
+        can_view_medical = False
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
-
-    return templates.TemplateResponse("members/portfolio.html", _ctx(
+    return templates.TemplateResponse(request, "members/portfolio.html", _ctx(
         request, current_user, active="members",
         member=member, teams=teams, performance=performance, medical=medical,
-        sports=sports,
+        sports=sports, can_view_medical=can_view_medical,
     ))
+
+
 
 
 @router.get("/members/{member_id}/edit", response_class=HTMLResponse)
@@ -293,16 +458,20 @@ def member_edit_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] != "Admin" and current_user["member_id"] != member_id:
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    track_db.execute("SELECT * FROM Member WHERE MemberID=%s", (member_id,))
-    member = track_db.fetchone()
-    if not member:
+    try:
+        res = api_get_member_portfolio(member_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/members", status_code=303)
-    return templates.TemplateResponse("members/form.html",
+    member = res["data"]["member"]
+    form_data = _member_form_defaults(member=member)
+    return templates.TemplateResponse(request, "members/form.html",
                                       _ctx(request, current_user, active="members",
-                                           member=member, error=None))
+                                           member=member, form_data=form_data,
+                                           country_codes=COMMON_COUNTRY_CODES, error=None))
 
 
 @router.post("/members/{member_id}/edit")
@@ -315,16 +484,86 @@ def member_edit_submit(
     name: str = Form(...),
     email: str = Form(...),
     age: int = Form(...),
-    contact_number: str = Form(...),
+    contact_country_code: Optional[str] = Form(None),
+    contact_number: Optional[str] = Form(None),
+    contact_number_local: Optional[str] = Form(None),
+    image: Optional[str] = Form(None),
 ):
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "UPDATE Member SET Name=%s, Email=%s, Age=%s, ContactNumber=%s WHERE MemberID=%s",
-        (name, email, age, contact_number, member_id),
+    if not isinstance(contact_country_code, str):
+        contact_country_code = None
+    if not isinstance(contact_number_local, str):
+        contact_number_local = None
+    if not isinstance(contact_number, str):
+        contact_number = None
+    image = image.strip() if isinstance(image, str) and image.strip() else None
+    try:
+        if contact_number_local is not None or contact_country_code is not None:
+            contact_value = combine_contact_number(contact_country_code, contact_number_local or contact_number or "")
+        else:
+            contact_value = contact_number or ""
+    except ValueError as exc:
+        if current_user["role"] != "Admin" and current_user["member_id"] != member_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        form_data = _member_form_defaults(form_data={
+            "Name": name,
+            "Email": email,
+            "Age": age,
+            "Image": image or "",
+            "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
+            "ContactNumberLocal": contact_number_local or contact_number or "",
+        })
+        track_db.execute("SELECT * FROM Member WHERE MemberID=%s", (member_id,))
+        member = track_db.fetchone()
+        return templates.TemplateResponse(
+            request,
+            "members/form.html",
+            _ctx(
+                request,
+                current_user,
+                active="members",
+                member=member,
+                form_data=form_data,
+                country_codes=COMMON_COUNTRY_CODES,
+                error=str(exc),
+            ),
+        )
+    body = MemberUpdate(
+        name=name,
+        email=email,
+        age=age,
+        contact_number=contact_value,
+        image=image,
     )
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "UPDATE", "Member", str(member_id), "SUCCESS",
-                    {"name": name, "email": email}, ip)
+    try:
+        api_update_member(member_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
+        if exc.status_code == 404:
+            return RedirectResponse("/ui/members", status_code=303)
+        form_data = _member_form_defaults(form_data={
+            "Name": name,
+            "Email": email,
+            "Age": age,
+            "Image": image or "",
+            "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
+            "ContactNumberLocal": contact_number_local or contact_number or "",
+        })
+        track_db.execute("SELECT * FROM Member WHERE MemberID=%s", (member_id,))
+        member = track_db.fetchone()
+        return templates.TemplateResponse(
+            request,
+            "members/form.html",
+            _ctx(
+                request,
+                current_user,
+                active="members",
+                member=member,
+                form_data=form_data,
+                country_codes=COMMON_COUNTRY_CODES,
+                error=exc.detail,
+            ),
+        )
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
 
@@ -333,36 +572,30 @@ def member_delete(
     member_id: int,
     request: Request,
     current_user: dict = Depends(get_current_user),
-    track_db=Depends(get_track_db),
-    auth_db=Depends(get_auth_db),
+    cross_db=Depends(get_cross_db),
 ):
-    ip = request.client.host if request.client else "unknown"
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/members", status_code=303)
-    auth_db.execute("UPDATE users SET member_id=NULL WHERE member_id=%s", (member_id,))
-    track_db.execute("DELETE FROM Member WHERE MemberID=%s", (member_id,))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "Member", str(member_id), "SUCCESS", None, ip)
+    try:
+        api_delete_member(member_id, request, current_user, cross_db)
+    except HTTPException:
+        return RedirectResponse("/ui/members", status_code=303)
     return RedirectResponse("/ui/members", status_code=303)
 
-
-# ── Teams ──────────────────────────────────────────────────────────────────────
 
 @router.get("/teams", response_class=HTMLResponse)
 def teams_list(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute(
-        "SELECT t.*, s.SportName, m.Name AS CoachName FROM Team t "
-        "JOIN Sport s ON t.SportID=s.SportID LEFT JOIN Member m ON t.CoachID=m.MemberID "
-        "ORDER BY t.TeamID"
-    )
-    teams = track_db.fetchall()
+    res = api_list_teams(request, current_user, track_db, auth_db)
+    teams = res["data"]
     for t in teams:
-        t["FormedDate"] = str(t["FormedDate"])
-    return templates.TemplateResponse("teams/list.html",
+        if t.get("FormedDate") is not None:
+            t["FormedDate"] = str(t["FormedDate"])
+    return templates.TemplateResponse(request, "teams/list.html",
                                       _ctx(request, current_user, active="teams", teams=teams))
 
 
@@ -376,45 +609,63 @@ def team_new_form(
         return RedirectResponse("/ui/teams", status_code=303)
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
-    track_db.execute("SELECT MemberID, Name FROM Member WHERE Role='Coach' ORDER BY Name")
-    coaches = track_db.fetchall()
-    return templates.TemplateResponse("teams/form.html",
-                                      _ctx(request, current_user, active="teams",
-                                           team=None, sports=sports, coaches=coaches, error=None))
+    return templates.TemplateResponse(request, "teams/form.html",
+                                      _ctx(request, current_user, form_data={"members": [{"member_id": "", "position": ""}]}, active="teams", error=None, sports=sports))
 
 
 @router.post("/teams/new")
-def team_create(
+async def team_create(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
-    team_name: str = Form(...),
-    sport_id: int = Form(...),
-    coach_id: Optional[int] = Form(None),
-    formed_date: str = Form(...),
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/teams", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("SELECT COALESCE(MAX(TeamID), 0) + 1 AS nid FROM Team")
-    next_id = track_db.fetchone()["nid"]
+    form = await request.form()
+    team_name = str(form.get("team_name") or "").strip()
+    formed_date = str(form.get("formed_date") or "").strip()
+    raw_ids = form.getlist("member_ids") or [""]
+    raw_positions = form.getlist("member_positions") or [""]
+    raw_members = [{"member_id": raw_ids[i], "position": raw_positions[i] if i < len(raw_positions) else ""}
+                   for i in range(len(raw_ids))]
+    raw_form_data = {
+        "team_name": team_name,
+        "sport_id": form.get("sport_id", ""),
+        "coach_id": form.get("coach_id", ""),
+        "captain_id": form.get("captain_id", ""),
+        "members": raw_members,
+        "formed_date": formed_date,
+    }
     try:
-        track_db.execute(
-            "INSERT INTO Team (TeamID, TeamName, CoachID, SportID, FormedDate) VALUES (%s,%s,%s,%s,%s)",
-            (next_id, team_name, coach_id, sport_id, formed_date),
-        )
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "INSERT", "Team", str(next_id), "SUCCESS", {"name": team_name}, ip)
-    except Exception as e:
+        sport_id = _parse_required_int(form.get("sport_id"), "Sport ID")
+        coach_id = _parse_optional_int(form.get("coach_id"), "Coach ID")
+        captain_id = _parse_optional_int(form.get("captain_id"), "Captain ID")
+        members = _parse_members(form)
+    except ValueError as exc:
         track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
         sports = track_db.fetchall()
-        track_db.execute("SELECT MemberID, Name FROM Member WHERE Role='Coach' ORDER BY Name")
-        coaches = track_db.fetchall()
-        return templates.TemplateResponse("teams/form.html",
-                                          _ctx(request, current_user, active="teams",
-                                               team=None, sports=sports, coaches=coaches, error=str(e)))
-    return RedirectResponse(f"/ui/teams/{next_id}", status_code=303)
+        return templates.TemplateResponse(
+            request,
+            "teams/form.html",
+            _ctx(request, current_user, active="teams", form_data=raw_form_data, error=str(exc), sports=sports),
+        )
+    body = TeamCreate(
+        team_name=team_name,
+        sport_id=sport_id,
+        coach_id=coach_id,
+        captain_id=captain_id,
+        members=members,
+        formed_date=formed_date,
+    )
+    try:
+        res = api_create_team(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
+        return templates.TemplateResponse(request, "teams/form.html",
+                                          _ctx(request, current_user, active="teams", form_data=raw_form_data, error=exc.detail, sports=sports))
+    return RedirectResponse(f"/ui/teams/{res['data']['team_id']}", status_code=303)
 
 
 @router.get("/teams/{team_id}/edit", response_class=HTMLResponse)
@@ -423,45 +674,106 @@ def team_edit_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
-    track_db.execute("SELECT * FROM Team WHERE TeamID=%s", (team_id,))
-    team = track_db.fetchone()
-    if not team:
+    try:
+        res = api_get_team(team_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/teams", status_code=303)
-    team["FormedDate"] = str(team["FormedDate"])
+    team = res["data"]["team"]
+    if team["CoachID"] != current_user["member_id"] and current_user["role"] != "Admin":
+        return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
+    if team.get("FormedDate") is not None:
+        team["FormedDate"] = str(team["FormedDate"])
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
-    track_db.execute("SELECT MemberID, Name FROM Member WHERE Role='Coach' ORDER BY Name")
-    coaches = track_db.fetchall()
-    return templates.TemplateResponse("teams/form.html",
-                                      _ctx(request, current_user, active="teams",
-                                           team=team, sports=sports, coaches=coaches, error=None))
+    roster = res["data"]["roster"]
+    form_data = {
+        "team_name": team["TeamName"],
+        "sport_id": team["SportID"],
+        "coach_id": team["CoachID"],
+        "captain_id": team["CaptainID"],
+        "members": [{"member_id": m["MemberID"], "position": m.get("Position") or ""} for m in roster] or [{"member_id": "", "position": ""}],
+        "formed_date": team["FormedDate"]
+    }
+    return templates.TemplateResponse(request, "teams/form.html",
+                                      _ctx(request, current_user, active="teams", team=team, form_data=form_data, error=None, sports=sports))
 
 
 @router.post("/teams/{team_id}/edit")
-def team_edit_submit(
+async def team_edit_submit(
     team_id: int,
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
-    team_name: str = Form(...),
-    sport_id: int = Form(...),
-    coach_id: Optional[int] = Form(None),
-    formed_date: str = Form(...),
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "UPDATE Team SET TeamName=%s, CoachID=%s, SportID=%s, FormedDate=%s WHERE TeamID=%s",
-        (team_name, coach_id, sport_id, formed_date, team_id),
+    form = await request.form()
+    team_name = str(form.get("team_name") or "").strip()
+    formed_date = str(form.get("formed_date") or "").strip()
+    raw_ids = form.getlist("member_ids") or [""]
+    raw_positions = form.getlist("member_positions") or [""]
+    raw_members = [{"member_id": raw_ids[i], "position": raw_positions[i] if i < len(raw_positions) else ""}
+                   for i in range(len(raw_ids))]
+    raw_form_data = {
+        "team_name": team_name,
+        "sport_id": form.get("sport_id", ""),
+        "coach_id": form.get("coach_id", ""),
+        "captain_id": form.get("captain_id", ""),
+        "members": raw_members,
+        "formed_date": formed_date,
+    }
+    try:
+        sport_id = _parse_required_int(form.get("sport_id"), "Sport ID")
+        coach_id = _parse_optional_int(form.get("coach_id"), "Coach ID")
+        captain_id = _parse_optional_int(form.get("captain_id"), "Captain ID")
+        members = _parse_members(form)
+    except ValueError as exc:
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
+        team = {
+            "TeamID": team_id,
+            "TeamName": team_name,
+            "SportID": raw_form_data["sport_id"],
+            "CoachID": raw_form_data["coach_id"],
+            "CaptainID": raw_form_data["captain_id"],
+            "FormedDate": formed_date,
+        }
+        return templates.TemplateResponse(
+            request,
+            "teams/form.html",
+            _ctx(request, current_user, active="teams", team=team, form_data=raw_form_data, error=str(exc), sports=sports),
+        )
+    body = TeamUpdate(
+        team_name=team_name,
+        sport_id=sport_id,
+        coach_id=coach_id,
+        captain_id=captain_id,
+        members=members,
+        formed_date=formed_date,
     )
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "UPDATE", "Team", str(team_id), "SUCCESS", {"name": team_name}, ip)
-    return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
+    try:
+        api_update_team(team_id, body, request, current_user, track_db, auth_db)
+        return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
+    except HTTPException as exc:
+        if exc.status_code in (403, 404):
+            return RedirectResponse(f"/ui/teams/{team_id}" if exc.status_code == 403 else "/ui/teams", status_code=303)
+        team = {
+            "TeamID": team_id,
+            "TeamName": team_name,
+            "SportID": raw_form_data["sport_id"],
+            "CoachID": raw_form_data["coach_id"],
+            "CaptainID": raw_form_data["captain_id"],
+            "FormedDate": formed_date,
+        }
+        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
+        sports = track_db.fetchall()
+        return templates.TemplateResponse(request, "teams/form.html",
+                                          _ctx(request, current_user, active="teams", team=team, form_data=raw_form_data, error=exc.detail, sports=sports))
 
 
 @router.post("/teams/{team_id}/delete")
@@ -472,12 +784,10 @@ def team_delete(
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
 ):
-    if current_user["role"] != "Admin":
+    try:
+        api_delete_team(team_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("DELETE FROM Team WHERE TeamID=%s", (team_id,))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "Team", str(team_id), "SUCCESS", None, ip)
     return RedirectResponse("/ui/teams", status_code=303)
 
 
@@ -487,56 +797,55 @@ def team_detail(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute(
-        "SELECT t.*, s.SportName, m.Name AS CoachName FROM Team t "
-        "JOIN Sport s ON t.SportID=s.SportID LEFT JOIN Member m ON t.CoachID=m.MemberID "
-        "WHERE t.TeamID=%s", (team_id,))
-    team = track_db.fetchone()
-    if not team:
+    try:
+        res = api_get_team(team_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/teams", status_code=303)
-    team["FormedDate"] = str(team["FormedDate"])
-
-    track_db.execute(
-        "SELECT tm.*, m.Name, m.Role, m.Email FROM TeamMember tm "
-        "JOIN Member m ON tm.MemberID=m.MemberID WHERE tm.TeamID=%s", (team_id,))
-    roster = track_db.fetchall()
+    team = res["data"]["team"]
+    roster = res["data"]["roster"]
+    events = res["data"].get("events", [])
+    if team.get("FormedDate") is not None:
+        team["FormedDate"] = str(team["FormedDate"])
     for r in roster:
-        r["JoinDate"] = str(r["JoinDate"])
-
-    return templates.TemplateResponse("teams/detail.html",
+        if r.get("JoinDate") is not None:
+            r["JoinDate"] = str(r["JoinDate"])
+    for event in events:
+        if event.get("EventDate") is not None:
+            event["EventDate"] = str(event["EventDate"])
+        if event.get("StartTime") is not None:
+            event["StartTime"] = str(event["StartTime"])
+        if event.get("EndTime") is not None:
+            event["EndTime"] = str(event["EndTime"])
+    return templates.TemplateResponse(request, "teams/detail.html",
                                       _ctx(request, current_user, active="teams",
-                                           team=team, roster=roster))
+                                           team=team, roster=roster, events=events))
 
-
-# ── Tournaments ────────────────────────────────────────────────────────────────
 
 @router.get("/tournaments", response_class=HTMLResponse)
 def tournaments_list(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute("SELECT * FROM Tournament ORDER BY StartDate DESC")
-    tournaments = track_db.fetchall()
-    for t in tournaments:
-        t["StartDate"] = str(t["StartDate"])
-        t["EndDate"] = str(t["EndDate"])
-    return templates.TemplateResponse("tournaments/list.html",
+    tournaments = api_list_tournaments(request, current_user, track_db, auth_db)["data"]
+    return templates.TemplateResponse(request, "tournaments/list.html",
                                       _ctx(request, current_user, active="tournaments",
                                            tournaments=tournaments))
 
 
 @router.get("/tournaments/new", response_class=HTMLResponse)
-
 def tournament_new_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/tournaments", status_code=303)
-    return templates.TemplateResponse("tournaments/form.html",
-                                      _ctx(request, current_user, active="tournaments", error=None))
+    return templates.TemplateResponse(request, "tournaments/form.html",
+                                      _ctx(request, current_user, form_data={"status": "Upcoming"},
+                                           active="tournaments", error=None))
 
 
 @router.post("/tournaments/new")
@@ -553,21 +862,25 @@ def tournament_create(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/tournaments", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("SELECT COALESCE(MAX(TournamentID), 0) + 1 AS nid FROM Tournament")
-    next_id = track_db.fetchone()["nid"]
+    body = TournamentCreate(
+        tournament_name=tournament_name,
+        start_date=start_date,
+        end_date=end_date,
+        description=description or None,
+        status=status,
+    )
     try:
-        track_db.execute(
-            "INSERT INTO Tournament (TournamentID, TournamentName, StartDate, EndDate, Description, Status) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
-            (next_id, tournament_name, start_date, end_date, description or None, status),
-        )
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "INSERT", "Tournament", str(next_id), "SUCCESS",
-                        {"name": tournament_name}, ip)
-    except Exception as e:
-        return templates.TemplateResponse("tournaments/form.html",
-                                          _ctx(request, current_user, active="tournaments", error=str(e)))
+        api_create_tournament(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        form_data = {
+            "tournament_name": tournament_name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "description": description,
+            "status": status,
+        }
+        return templates.TemplateResponse(request, "tournaments/form.html",
+                                          _ctx(request, current_user, form_data=form_data, active="tournaments", error=exc.detail))
     return RedirectResponse("/ui/tournaments", status_code=303)
 
 
@@ -577,35 +890,17 @@ def tournament_detail(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute("SELECT * FROM Tournament WHERE TournamentID=%s", (tournament_id,))
-    tournament = track_db.fetchone()
-    if not tournament:
+    try:
+        res = api_get_tournament(tournament_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/tournaments", status_code=303)
-    tournament["StartDate"] = str(tournament["StartDate"])
-    tournament["EndDate"] = str(tournament["EndDate"])
-
-    track_db.execute(
-        "SELECT e.*, s.SportName, v.VenueName FROM Event e "
-        "JOIN Sport s ON e.SportID=s.SportID JOIN Venue v ON e.VenueID=v.VenueID "
-        "WHERE e.TournamentID=%s ORDER BY e.EventDate", (tournament_id,))
-    events = track_db.fetchall()
-    for ev in events:
-        ev["EventDate"] = str(ev["EventDate"])
-        ev["StartTime"] = str(ev["StartTime"])
-        ev["EndTime"]   = str(ev["EndTime"])
-
-    track_db.execute(
-        "SELECT tr.RegID, t.TeamID, t.TeamName, s.SportName FROM TournamentRegistration tr "
-        "JOIN Team t ON tr.TeamID=t.TeamID JOIN Sport s ON t.SportID=s.SportID "
-        "WHERE tr.TournamentID=%s ORDER BY t.TeamName", (tournament_id,))
-    registered_teams = track_db.fetchall()
-
-    registered_ids = {r["TeamID"] for r in registered_teams}
-    track_db.execute("SELECT TeamID, TeamName FROM Team ORDER BY TeamName")
-    all_teams = [t for t in track_db.fetchall() if t["TeamID"] not in registered_ids]
-
-    return templates.TemplateResponse("tournaments/detail.html",
+    tournament = res["data"]["tournament"]
+    events = res["data"]["events"]
+    registered_teams = res["data"]["registered_teams"]
+    all_teams = res["data"]["available_teams"]
+    return templates.TemplateResponse(request, "tournaments/detail.html",
                                       _ctx(request, current_user, active="tournaments",
                                            tournament=tournament, events=events,
                                            registered_teams=registered_teams, all_teams=all_teams))
@@ -620,7 +915,6 @@ def tournament_edit_form(
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
     from app.database import get_track_db as _get_track_db
-    # Use a direct import to avoid dependency injection in GET
     return RedirectResponse(f"/ui/tournaments/{tournament_id}/edit-form", status_code=303)
 
 
@@ -630,17 +924,24 @@ def tournament_edit_page(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
-    track_db.execute("SELECT * FROM Tournament WHERE TournamentID=%s", (tournament_id,))
-    tournament = track_db.fetchone()
-    if not tournament:
+    try:
+        res = api_get_tournament(tournament_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/tournaments", status_code=303)
-    tournament["StartDate"] = str(tournament["StartDate"])
-    tournament["EndDate"] = str(tournament["EndDate"])
-    return templates.TemplateResponse("tournaments/form.html",
-                                      _ctx(request, current_user, active="tournaments",
+    tournament = res["data"]["tournament"]
+    form_data = {
+        "tournament_name": tournament["TournamentName"],
+        "start_date": tournament["StartDate"],
+        "end_date": tournament["EndDate"],
+        "description": tournament["Description"],
+        "status": tournament["Status"],
+    }
+    return templates.TemplateResponse(request, "tournaments/form.html",
+                                      _ctx(request, current_user, form_data=form_data,active="tournaments",
                                            tournament=tournament, error=None))
 
 
@@ -659,18 +960,39 @@ def tournament_edit_submit(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
+    body = TournamentUpdate(
+        tournament_name=tournament_name,
+        start_date=start_date,
+        end_date=end_date,
+        description=description or None,
+        status=status,
+    )
     try:
-        track_db.execute(
-            "UPDATE Tournament SET TournamentName=%s, StartDate=%s, EndDate=%s, "
-            "Description=%s, Status=%s WHERE TournamentID=%s",
-            (tournament_name, start_date, end_date, description or None, status, tournament_id),
+        api_update_tournament(tournament_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        tournament = {
+            "TournamentID": tournament_id,
+            "TournamentName": tournament_name,
+            "StartDate": start_date,
+            "EndDate": end_date,
+            "Description": description,
+            "Status": status,
+        }
+        form_data = {
+            "tournament_name": tournament_name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "description": description,
+            "status": status,
+        }
+        return templates.TemplateResponse(
+            request,
+            "tournaments/form.html",
+            _ctx(request, current_user, form_data=form_data, active="tournaments",
+                 tournament=tournament, error=exc.detail),
         )
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "UPDATE", "Tournament", str(tournament_id), "SUCCESS",
-                        {"name": tournament_name}, ip)
-    except Exception as e:
-        return _flash_redirect(f"/ui/tournaments/{tournament_id}/edit-form", error=str(e))
+    except Exception as exc:
+        return _flash_redirect(f"/ui/tournaments/{tournament_id}/edit-form", error=str(exc))
     return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
 
 
@@ -684,10 +1006,10 @@ def tournament_delete(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/tournaments", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("DELETE FROM Tournament WHERE TournamentID=%s", (tournament_id,))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "Tournament", str(tournament_id), "SUCCESS", None, ip)
+    try:
+        api_delete_tournament(tournament_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect("/ui/tournaments", error=exc.detail)
     return _flash_redirect("/ui/tournaments", success="Tournament deleted.")
 
 
@@ -702,25 +1024,12 @@ def tournament_register_team(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
     try:
-        track_db.execute(
-            "SELECT RegID FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
-            (tournament_id, team_id))
-        if track_db.fetchone():
-            return _flash_redirect(f"/ui/tournaments/{tournament_id}",
-                                   error="Team is already registered.")
-        track_db.execute(
-            "SELECT COALESCE(MAX(RegID), 0) + 1 AS nid FROM TournamentRegistration")
-        next_id = track_db.fetchone()["nid"]
-        track_db.execute(
-            "INSERT INTO TournamentRegistration (RegID, TournamentID, TeamID) VALUES (%s,%s,%s)",
-            (next_id, tournament_id, team_id))
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "INSERT", "TournamentRegistration", str(next_id), "SUCCESS",
-                        {"tournament_id": tournament_id, "team_id": team_id}, ip)
-    except Exception as e:
-        return _flash_redirect(f"/ui/tournaments/{tournament_id}", error=str(e))
+        api_register_team_for_tournament(tournament_id, team_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/tournaments/{tournament_id}", error=exc.detail)
+    except Exception as exc:
+        return _flash_redirect(f"/ui/tournaments/{tournament_id}", error=str(exc))
     return _flash_redirect(f"/ui/tournaments/{tournament_id}", success="Team registered.")
 
 
@@ -735,35 +1044,22 @@ def tournament_unregister_team(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/tournaments/{tournament_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "DELETE FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
-        (tournament_id, team_id))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "TournamentRegistration", None, "SUCCESS",
-                    {"tournament_id": tournament_id, "team_id": team_id}, ip)
+    try:
+        api_unregister_team_from_tournament(tournament_id, team_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/tournaments/{tournament_id}", error=exc.detail)
     return _flash_redirect(f"/ui/tournaments/{tournament_id}", success="Team unregistered.")
 
-
-# ── Events ─────────────────────────────────────────────────────────────────────
 
 @router.get("/events", response_class=HTMLResponse)
 def events_list(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute(
-        "SELECT e.*, s.SportName, v.VenueName, t.TournamentName FROM Event e "
-        "JOIN Sport s ON e.SportID=s.SportID JOIN Venue v ON e.VenueID=v.VenueID "
-        "LEFT JOIN Tournament t ON e.TournamentID=t.TournamentID ORDER BY e.EventDate DESC"
-    )
-    events = track_db.fetchall()
-    for ev in events:
-        ev["EventDate"]  = str(ev["EventDate"])
-        ev["StartTime"]  = str(ev["StartTime"])
-        ev["EndTime"]    = str(ev["EndTime"])
-    return templates.TemplateResponse("events/list.html",
+    events = api_list_events(request, current_user, track_db, auth_db)["data"]
+    return templates.TemplateResponse(request, "events/list.html",
                                       _ctx(request, current_user, active="events", events=events))
 
 
@@ -772,18 +1068,15 @@ def event_new_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/events", status_code=303)
-    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
-    sports = track_db.fetchall()
-    track_db.execute("SELECT VenueID, VenueName FROM Venue ORDER BY VenueName")
-    venues = track_db.fetchall()
-    track_db.execute("SELECT TournamentID, TournamentName FROM Tournament ORDER BY TournamentName")
-    tournaments = track_db.fetchall()
-    return templates.TemplateResponse("events/form.html",
+    lookups = _get_event_lookups(request, current_user, track_db, auth_db)
+    return templates.TemplateResponse(request, "events/form.html",
                                       _ctx(request, current_user, active="events",
-                                           sports=sports, venues=venues, tournaments=tournaments, error=None))
+                                           sports=lookups["sports"], venues=lookups["venues"],
+                                           tournaments=lookups["tournaments"], form_data={}, error=None))
 
 
 @router.post("/events/new")
@@ -804,30 +1097,38 @@ def event_create(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/events", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("SELECT COALESCE(MAX(EventID), 0) + 1 AS nid FROM Event")
-    next_id = track_db.fetchone()["nid"]
+    form_data = {
+        "event_name": event_name,
+        "tournament_id": tournament_id,
+        "event_date": event_date,
+        "start_time": start_time,
+        "end_time": end_time,
+        "venue_id": venue_id,
+        "sport_id": sport_id,
+        "status": status,
+        "round_name": round_name or "",
+    }
+    body = EventCreate(
+        event_name=event_name,
+        tournament_id=tournament_id,
+        event_date=event_date,
+        start_time=start_time,
+        end_time=end_time,
+        venue_id=venue_id,
+        sport_id=sport_id,
+        status=status,
+        round=round_name or None,
+    )
     try:
-        track_db.execute(
-            "INSERT INTO Event (EventID, EventName, TournamentID, EventDate, StartTime, EndTime, "
-            "VenueID, SportID, Status, Round) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (next_id, event_name, tournament_id, event_date, start_time, end_time,
-             venue_id, sport_id, status, round_name or None),
-        )
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "INSERT", "Event", str(next_id), "SUCCESS", {"name": event_name}, ip)
-    except Exception as e:
-        track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
-        sports = track_db.fetchall()
-        track_db.execute("SELECT VenueID, VenueName FROM Venue ORDER BY VenueName")
-        venues = track_db.fetchall()
-        track_db.execute("SELECT TournamentID, TournamentName FROM Tournament ORDER BY TournamentName")
-        tournaments = track_db.fetchall()
-        return templates.TemplateResponse("events/form.html",
+        res = api_create_event(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        lookups = _get_event_lookups(request, current_user, track_db, auth_db)
+        return templates.TemplateResponse(request, "events/form.html",
                                           _ctx(request, current_user, active="events",
-                                               sports=sports, venues=venues,
-                                               tournaments=tournaments, error=str(e)))
-    return RedirectResponse(f"/ui/events/{next_id}", status_code=303)
+                                               sports=lookups["sports"], venues=lookups["venues"],
+                                               tournaments=lookups["tournaments"], form_data=form_data,
+                                               error=exc.detail))
+    return RedirectResponse(f"/ui/events/{res['data']['event_id']}", status_code=303)
 
 
 @router.get("/events/{event_id}/edit", response_class=HTMLResponse)
@@ -836,25 +1137,31 @@ def event_edit_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
-    track_db.execute("SELECT * FROM Event WHERE EventID=%s", (event_id,))
-    event = track_db.fetchone()
-    if not event:
+    try:
+        res = api_get_event(event_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/events", status_code=303)
-    for k in ("EventDate", "StartTime", "EndTime"):
-        event[k] = str(event[k])
-    track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
-    sports = track_db.fetchall()
-    track_db.execute("SELECT VenueID, VenueName FROM Venue ORDER BY VenueName")
-    venues = track_db.fetchall()
-    track_db.execute("SELECT TournamentID, TournamentName FROM Tournament ORDER BY TournamentName")
-    tournaments = track_db.fetchall()
-    return templates.TemplateResponse("events/form.html",
+    event = res["data"]["event"]
+    lookups = _get_event_lookups(request, current_user, track_db, auth_db)
+    form_data = {
+        "event_name": event["EventName"],
+        "tournament_id": event["TournamentID"],
+        "event_date": event["EventDate"],
+        "start_time": event["StartTime"],
+        "end_time": event["EndTime"],
+        "venue_id": event["VenueID"],
+        "sport_id": event["SportID"],
+        "status": event["Status"],
+        "round_name": event["Round"] or "",
+    }
+    return templates.TemplateResponse(request, "events/form.html",
                                       _ctx(request, current_user, active="events",
-                                           event=event, sports=sports, venues=venues,
-                                           tournaments=tournaments, error=None))
+                                           event=event, sports=lookups["sports"], venues=lookups["venues"],
+                                           tournaments=lookups["tournaments"], form_data=form_data, error=None))
 
 
 @router.post("/events/{event_id}/edit")
@@ -876,18 +1183,53 @@ def event_edit_submit(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
+    form_data = {
+        "event_name": event_name,
+        "tournament_id": tournament_id,
+        "event_date": event_date,
+        "start_time": start_time,
+        "end_time": end_time,
+        "venue_id": venue_id,
+        "sport_id": sport_id,
+        "status": status,
+        "round_name": round_name or "",
+    }
+    body = EventUpdate(
+        event_name=event_name,
+        tournament_id=tournament_id,
+        event_date=event_date,
+        start_time=start_time,
+        end_time=end_time,
+        venue_id=venue_id,
+        sport_id=sport_id,
+        status=status,
+        round=round_name or None,
+    )
     try:
-        track_db.execute(
-            "UPDATE Event SET EventName=%s, TournamentID=%s, EventDate=%s, StartTime=%s, "
-            "EndTime=%s, VenueID=%s, SportID=%s, Status=%s, Round=%s WHERE EventID=%s",
-            (event_name, tournament_id, event_date, start_time, end_time,
-             venue_id, sport_id, status, round_name or None, event_id),
+        api_update_event(event_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        lookups = _get_event_lookups(request, current_user, track_db, auth_db)
+        event = {
+            "EventID": event_id,
+            "EventName": event_name,
+            "TournamentID": tournament_id,
+            "EventDate": event_date,
+            "StartTime": start_time,
+            "EndTime": end_time,
+            "VenueID": venue_id,
+            "SportID": sport_id,
+            "Status": status,
+            "Round": round_name or None,
+        }
+        return templates.TemplateResponse(
+            request,
+            "events/form.html",
+            _ctx(request, current_user, active="events", event=event,
+                 sports=lookups["sports"], venues=lookups["venues"],
+                 tournaments=lookups["tournaments"], form_data=form_data, error=exc.detail),
         )
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "UPDATE", "Event", str(event_id), "SUCCESS", {"name": event_name}, ip)
-    except Exception as e:
-        return _flash_redirect(f"/ui/events/{event_id}/edit", error=str(e))
+    except Exception as exc:
+        return _flash_redirect(f"/ui/events/{event_id}/edit", error=str(exc))
     return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
 
 
@@ -901,10 +1243,10 @@ def event_delete(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/events", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("DELETE FROM Event WHERE EventID=%s", (event_id,))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "Event", str(event_id), "SUCCESS", None, ip)
+    try:
+        api_delete_event(event_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect("/ui/events", error=exc.detail)
     return _flash_redirect("/ui/events", success="Event deleted.")
 
 
@@ -917,38 +1259,14 @@ def event_add_team(
     auth_db=Depends(get_auth_db),
     team_id: int = Form(...),
 ):
-    if current_user["role"] != "Admin":
+    if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("SELECT TournamentID FROM Event WHERE EventID=%s", (event_id,))
-    ev = track_db.fetchone()
-    if not ev:
-        return _flash_redirect("/ui/events", error="Event not found.")
-
-    if ev["TournamentID"]:
-        track_db.execute(
-            "SELECT RegID FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
-            (ev["TournamentID"], team_id))
-        if not track_db.fetchone():
-            return _flash_redirect(
-                f"/ui/events/{event_id}",
-                error="Team must be registered for the tournament before joining its events.")
-
-    track_db.execute(
-        "SELECT ParticipationID FROM Participation WHERE EventID=%s AND TeamID=%s",
-        (event_id, team_id))
-    if track_db.fetchone():
-        return _flash_redirect(f"/ui/events/{event_id}",
-                                error="Team is already participating in this event.")
-
-    track_db.execute("SELECT COALESCE(MAX(ParticipationID), 0) + 1 AS nid FROM Participation")
-    next_id = track_db.fetchone()["nid"]
-    track_db.execute(
-        "INSERT INTO Participation (ParticipationID, TeamID, EventID) VALUES (%s,%s,%s)",
-        (next_id, team_id, event_id))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "INSERT", "Participation", str(next_id), "SUCCESS",
-                    {"event_id": event_id, "team_id": team_id}, ip)
+    try:
+        api_add_team_to_event(event_id, team_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return _flash_redirect("/ui/events", error=exc.detail)
+        return _flash_redirect(f"/ui/events/{event_id}", error=exc.detail)
     return _flash_redirect(f"/ui/events/{event_id}", success="Team added to event.")
 
 
@@ -961,15 +1279,52 @@ def event_remove_team(
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
 ):
-    if current_user["role"] != "Admin":
+    if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "DELETE FROM Participation WHERE EventID=%s AND TeamID=%s", (event_id, team_id))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "Participation", None, "SUCCESS",
-                    {"event_id": event_id, "team_id": team_id}, ip)
+    try:
+        api_remove_team_from_event(event_id, team_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/events/{event_id}", error=exc.detail)
     return _flash_redirect(f"/ui/events/{event_id}", success="Team removed from event.")
+
+
+@router.post("/events/{event_id}/edit-participation/{team_id}")
+async def event_edit_participation(
+    event_id: int,
+    team_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] not in ("Admin", "Coach"):
+        return RedirectResponse(f"/ui/events/{event_id}", status_code=303)
+    
+    form = await request.form()
+    
+    # Get the raw string values
+    score = str(form.get("score") or "").strip()
+    event_rank = str(form.get("event_rank") or "").strip()
+    result = str(form.get("result") or "").strip()
+    remarks = str(form.get("remarks") or "").strip()
+    
+    # Parse rank (keep as integer), but leave score as a string
+    parsed_rank = int(event_rank) if event_rank else None
+    
+    from app.routers.events import ParticipationUpdate
+    body = ParticipationUpdate(
+        score=score if score else None,  # Pass the string directly instead of float()
+        event_rank=parsed_rank,
+        result=result or None,
+        remarks=remarks or None,
+    )
+    
+    try:
+        api_update_participation(event_id, team_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/events/{event_id}", error=exc.detail)
+    
+    return _flash_redirect(f"/ui/events/{event_id}", success="Participation updated.")
 
 
 @router.get("/events/{event_id}", response_class=HTMLResponse)
@@ -978,70 +1333,220 @@ def event_detail(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute(
-        "SELECT e.*, s.SportName, v.VenueName, t.TournamentName FROM Event e "
-        "JOIN Sport s ON e.SportID=s.SportID JOIN Venue v ON e.VenueID=v.VenueID "
-        "LEFT JOIN Tournament t ON e.TournamentID=t.TournamentID WHERE e.EventID=%s", (event_id,))
-    event = track_db.fetchone()
-    if not event:
+    try:
+        res = api_get_event(event_id, request, current_user, track_db, auth_db)
+    except HTTPException:
         return RedirectResponse("/ui/events", status_code=303)
-    for k in ("EventDate", "StartTime", "EndTime"):
-        event[k] = str(event[k])
-
-    track_db.execute(
-        "SELECT p.*, tm.TeamName FROM Participation p JOIN Team tm ON p.TeamID=tm.TeamID "
-        "WHERE p.EventID=%s", (event_id,))
-    participation = track_db.fetchall()
-
-    # For "add team" form: show eligible teams (registered for tournament if applicable, not yet in event)
-    participating_ids = {p["TeamID"] for p in participation}
-    if event.get("TournamentID"):
-        track_db.execute(
-            "SELECT t.TeamID, t.TeamName FROM TournamentRegistration tr "
-            "JOIN Team t ON tr.TeamID=t.TeamID WHERE tr.TournamentID=%s ORDER BY t.TeamName",
-            (event["TournamentID"],))
-    else:
-        track_db.execute("SELECT TeamID, TeamName FROM Team ORDER BY TeamName")
-    eligible_teams = [t for t in track_db.fetchall() if t["TeamID"] not in participating_ids]
-
-    return templates.TemplateResponse("events/detail.html",
+    event = res["data"]["event"]
+    participation = res["data"]["participation"]
+    eligible_teams = res["data"]["eligible_teams"]
+    return templates.TemplateResponse(request, "events/detail.html",
                                       _ctx(request, current_user, active="events",
                                            event=event, participation=participation,
                                            eligible_teams=eligible_teams))
 
-
-# ── Equipment ──────────────────────────────────────────────────────────────────
 
 @router.get("/equipment", response_class=HTMLResponse)
 def equipment_list(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
-    track_db.execute(
-        "SELECT e.*, s.SportName, "
-        "e.TotalQuantity - COALESCE((SELECT SUM(ei.Quantity) FROM EquipmentIssue ei "
-        "WHERE ei.EquipmentID=e.EquipmentID AND ei.ReturnDate IS NULL), 0) AS AvailableQuantity "
-        "FROM Equipment e LEFT JOIN Sport s ON e.SportID=s.SportID ORDER BY e.EquipmentID"
-    )
-    equipment = track_db.fetchall()
-
-    track_db.execute(
-        "SELECT ei.*, e.EquipmentName, m.Name AS MemberName FROM EquipmentIssue ei "
-        "JOIN Equipment e ON ei.EquipmentID=e.EquipmentID "
-        "JOIN Member m ON ei.MemberID=m.MemberID WHERE ei.ReturnDate IS NULL"
-    )
-    issues = track_db.fetchall()
-    for i in issues:
-        i["IssueDate"] = str(i["IssueDate"])
-
-    track_db.execute("SELECT MemberID, Name FROM Member ORDER BY Name")
-    members = track_db.fetchall()
-
-    return templates.TemplateResponse("equipment/list.html",
+    equipment = api_list_equipment(request, current_user, track_db, auth_db)["data"]
+    issues = api_list_issues(request, current_user, track_db, auth_db, active_only=True)["data"]
+    members = []
+    if current_user["role"] == "Admin":
+        members = api_list_members(request, current_user, track_db, auth_db)["data"]
+    elif current_user["role"] == "Coach":
+        track_db.execute(
+            """
+            SELECT DISTINCT m.MemberID, m.Name, m.Role, m.Gender, m.JoinDate
+            FROM TeamMember tm
+            JOIN Team t ON tm.TeamID = t.TeamID
+            JOIN Member m ON tm.MemberID = m.MemberID
+            WHERE t.CoachID = %s
+            ORDER BY m.MemberID
+            """,
+            (current_user["member_id"],),
+        )
+        members = track_db.fetchall()
+    return templates.TemplateResponse(request, "equipment/list.html",
                                       _ctx(request, current_user, active="equipment",
-                                           equipment=equipment, issues=issues, members=members))
+                                           equipment=equipment, issues=issues, members=members,
+                                           now_date=date.today().isoformat()))
+
+
+@router.get("/equipment/new", response_class=HTMLResponse)
+def equipment_create_form(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/equipment", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "equipment/form.html",
+        _ctx(
+            request,
+            current_user,
+            active="equipment",
+            equipment=None,
+            sports=_get_sports(track_db),
+            form_data=_equipment_form_data(),
+            error=None,
+        ),
+    )
+
+
+@router.post("/equipment/new")
+def equipment_create(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    equipment_name: str = Form(...),
+    total_quantity: int = Form(...),
+    equipment_condition: str = Form(...),
+    sport_id: Optional[str] = Form(None),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/equipment", status_code=303)
+    try:
+        parsed_sport_id = _parse_optional_int(sport_id, "Sport ID")
+    except ValueError as exc:
+        return _flash_redirect("/ui/equipment", error=str(exc))
+    body = EquipmentCreate(
+        equipment_name=equipment_name,
+        total_quantity=total_quantity,
+        equipment_condition=equipment_condition,
+        sport_id=parsed_sport_id,
+    )
+    try:
+        api_create_equipment(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect("/ui/equipment", error=exc.detail)
+    return _flash_redirect("/ui/equipment", success="Equipment added successfully.")
+
+
+@router.get("/equipment/{equipment_id}/edit", response_class=HTMLResponse)
+def equipment_edit_form(
+    equipment_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/equipment", status_code=303)
+    try:
+        equipment = api_get_equipment(equipment_id, request, current_user, track_db, auth_db)["data"]
+    except HTTPException:
+        return _flash_redirect("/ui/equipment", error="Equipment item not found.")
+    return templates.TemplateResponse(
+        request,
+        "equipment/form.html",
+        _ctx(
+            request,
+            current_user,
+            active="equipment",
+            equipment=equipment,
+            sports=_get_sports(track_db),
+            form_data=_equipment_form_data(),
+            error=None,
+        ),
+    )
+
+
+@router.post("/equipment/{equipment_id}/edit")
+def equipment_edit_submit(
+    equipment_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+    equipment_name: str = Form(...),
+    total_quantity: int = Form(...),
+    equipment_condition: str = Form(...),
+    sport_id: Optional[str] = Form(None),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/equipment", status_code=303)
+    try:
+        equipment = api_get_equipment(equipment_id, request, current_user, track_db, auth_db)["data"]
+    except HTTPException:
+        return _flash_redirect("/ui/equipment", error="Equipment item not found.")
+    try:
+        parsed_sport_id = _parse_optional_int(sport_id, "Sport ID")
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            request,
+            "equipment/form.html",
+            _ctx(
+                request,
+                current_user,
+                active="equipment",
+                equipment=equipment,
+                sports=_get_sports(track_db),
+                form_data=_equipment_form_data(
+                    equipment_name=equipment_name,
+                    total_quantity=total_quantity,
+                    equipment_condition=equipment_condition,
+                    sport_id=None,
+                ),
+                error=str(exc),
+            ),
+            status_code=400,
+        )
+    body = EquipmentUpdate(
+        equipment_name=equipment_name,
+        total_quantity=total_quantity,
+        equipment_condition=equipment_condition,
+        sport_id=parsed_sport_id,
+    )
+    try:
+        api_update_equipment(equipment_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return templates.TemplateResponse(
+            request,
+            "equipment/form.html",
+            _ctx(
+                request,
+                current_user,
+                active="equipment",
+                equipment=equipment,
+                sports=_get_sports(track_db),
+                form_data=_equipment_form_data(
+                    equipment_name=equipment_name,
+                    total_quantity=total_quantity,
+                    equipment_condition=equipment_condition,
+                    sport_id=parsed_sport_id,
+                ),
+                error=exc.detail,
+            ),
+            status_code=exc.status_code,
+        )
+    return _flash_redirect("/ui/equipment", success="Equipment updated successfully.")
+
+
+@router.post("/equipment/{equipment_id}/delete")
+def equipment_delete(
+    equipment_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/equipment", status_code=303)
+    try:
+        api_delete_equipment(equipment_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect("/ui/equipment", error=exc.detail)
+    return _flash_redirect("/ui/equipment", success="Equipment deleted successfully.")
 
 
 @router.post("/equipment/issue")
@@ -1057,32 +1562,16 @@ def equipment_issue(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/equipment", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    if quantity <= 0:
-        return _flash_redirect("/ui/equipment", error="Quantity must be a positive number.")
-    track_db.execute(
-        "SELECT e.TotalQuantity, COALESCE(SUM(ei.Quantity), 0) AS issued "
-        "FROM Equipment e LEFT JOIN EquipmentIssue ei "
-        "ON e.EquipmentID=ei.EquipmentID AND ei.ReturnDate IS NULL "
-        "WHERE e.EquipmentID=%s GROUP BY e.TotalQuantity",
-        (equipment_id,))
-    stock = track_db.fetchone()
-    if not stock:
-        return _flash_redirect("/ui/equipment", error="Equipment not found.")
-    available = stock["TotalQuantity"] - stock["issued"]
-    if quantity > available:
-        return _flash_redirect("/ui/equipment",
-            error=f"Cannot issue {quantity} item(s). Only {available} available.")
-    track_db.execute("SELECT COALESCE(MAX(IssueID), 0) + 1 AS nid FROM EquipmentIssue")
-    next_id = track_db.fetchone()["nid"]
-    track_db.execute(
-        "INSERT INTO EquipmentIssue (IssueID, EquipmentID, MemberID, IssueDate, Quantity) "
-        "VALUES (%s,%s,%s,%s,%s)",
-        (next_id, equipment_id, member_id, issue_date, quantity),
+    body = IssueCreate(
+        equipment_id=equipment_id,
+        member_id=member_id,
+        issue_date=issue_date,
+        quantity=quantity,
     )
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "INSERT", "EquipmentIssue", str(next_id), "SUCCESS",
-                    {"equipment_id": equipment_id, "member_id": member_id}, ip)
+    try:
+        api_issue_equipment(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect("/ui/equipment", error=exc.detail)
     return _flash_redirect("/ui/equipment", success="Equipment issued successfully.")
 
 
@@ -1097,18 +1586,12 @@ def equipment_return(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/equipment", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "UPDATE EquipmentIssue SET ReturnDate=%s WHERE IssueID=%s",
-        (return_date, issue_id),
-    )
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "UPDATE", "EquipmentIssue", str(issue_id), "SUCCESS",
-                    {"return_date": return_date}, ip)
+    try:
+        api_return_equipment(issue_id, return_date, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect("/ui/equipment", error=exc.detail)
     return RedirectResponse("/ui/equipment", status_code=303)
 
-
-# ── Performance logs ───────────────────────────────────────────────────────────
 
 @router.get("/performance-logs/{log_id}/edit", response_class=HTMLResponse)
 def perf_log_edit_form(
@@ -1116,19 +1599,17 @@ def perf_log_edit_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/dashboard", status_code=303)
-    track_db.execute(
-        "SELECT pl.*, s.SportName FROM PerformanceLog pl "
-        "JOIN Sport s ON pl.SportID=s.SportID WHERE pl.LogID=%s", (log_id,))
-    log = track_db.fetchone()
-    if not log:
+    try:
+        log = api_get_performance_log(log_id, request, current_user, track_db, auth_db)["data"]
+    except HTTPException:
         return RedirectResponse("/ui/members", status_code=303)
-    log["RecordDate"] = str(log["RecordDate"])
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
-    return templates.TemplateResponse("performance/form.html",
+    return templates.TemplateResponse(request, "performance/form.html",
                                       _ctx(request, current_user, active="members",
                                            log=log, sports=sports, error=None))
 
@@ -1148,14 +1629,16 @@ def perf_log_edit_submit(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "UPDATE PerformanceLog SET SportID=%s, MetricName=%s, MetricValue=%s, RecordDate=%s "
-        "WHERE LogID=%s",
-        (sport_id, metric_name, metric_value, record_date, log_id))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "UPDATE", "PerformanceLog", str(log_id), "SUCCESS",
-                    {"metric": metric_name, "value": metric_value}, ip)
+    body = PerfLogUpdate(
+        sport_id=sport_id,
+        metric_name=metric_name,
+        metric_value=metric_value,
+        record_date=record_date,
+    )
+    try:
+        api_update_performance_log(log_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/members/{member_id}", error=exc.detail)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
 
@@ -1170,10 +1653,10 @@ def perf_log_delete(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("DELETE FROM PerformanceLog WHERE LogID=%s", (log_id,))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "PerformanceLog", str(log_id), "SUCCESS", None, ip)
+    try:
+        api_delete_performance_log(log_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/members/{member_id}", error=exc.detail)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
 
@@ -1191,21 +1674,19 @@ def performance_log_create(
 ):
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("SELECT COALESCE(MAX(LogID), 0) + 1 AS nid FROM PerformanceLog")
-    next_id = track_db.fetchone()["nid"]
-    track_db.execute(
-        "INSERT INTO PerformanceLog (LogID, MemberID, SportID, MetricName, MetricValue, RecordDate) "
-        "VALUES (%s,%s,%s,%s,%s,%s)",
-        (next_id, member_id, sport_id, metric_name, metric_value, record_date),
+    body = PerfLogCreate(
+        member_id=member_id,
+        sport_id=sport_id,
+        metric_name=metric_name,
+        metric_value=metric_value,
+        record_date=record_date,
     )
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "INSERT", "PerformanceLog", str(next_id), "SUCCESS",
-                    {"member_id": member_id, "metric": metric_name}, ip)
+    try:
+        api_create_performance_log(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/members/{member_id}", error=exc.detail)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
-
-# ── Medical records ─────────────────────────────────────────────────────────────
 
 @router.post("/medical-records/new")
 def medical_record_create(
@@ -1221,21 +1702,19 @@ def medical_record_create(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("SELECT COALESCE(MAX(RecordID), 0) + 1 AS nid FROM MedicalRecord")
-    next_id = track_db.fetchone()["nid"]
-    track_db.execute(
-        "INSERT INTO MedicalRecord (RecordID, MemberID, MedicalCondition, DiagnosisDate, RecoveryDate, Status) "
-        "VALUES (%s,%s,%s,%s,%s,%s)",
-        (next_id, member_id, medical_condition, diagnosis_date, recovery_date or None, status),
+    body = MedicalCreate(
+        member_id=member_id,
+        medical_condition=medical_condition,
+        diagnosis_date=diagnosis_date,
+        recovery_date=recovery_date or None,
+        status=status,
     )
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "INSERT", "MedicalRecord", str(next_id), "SUCCESS",
-                    {"member_id": member_id, "condition": medical_condition}, ip)
+    try:
+        api_create_medical_record(body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/members/{member_id}", error=exc.detail)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
-
-# ── Medical record edit/delete ─────────────────────────────────────────────────
 
 @router.get("/medical-records/{record_id}/edit", response_class=HTMLResponse)
 def medical_record_edit_form(
@@ -1243,17 +1722,15 @@ def medical_record_edit_form(
     request: Request,
     current_user: dict = Depends(get_current_user),
     track_db=Depends(get_track_db),
+    auth_db=Depends(get_auth_db),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/members", status_code=303)
-    track_db.execute("SELECT * FROM MedicalRecord WHERE RecordID=%s", (record_id,))
-    record = track_db.fetchone()
-    if not record:
+    try:
+        record = api_get_medical_record(record_id, request, current_user, track_db, auth_db)["data"]
+    except HTTPException:
         return RedirectResponse("/ui/members", status_code=303)
-    record["DiagnosisDate"] = str(record["DiagnosisDate"])
-    if record.get("RecoveryDate"):
-        record["RecoveryDate"] = str(record["RecoveryDate"])
-    return templates.TemplateResponse("medical/form.html",
+    return templates.TemplateResponse(request, "medical/form.html",
                                       _ctx(request, current_user, active="members",
                                            record=record, error=None))
 
@@ -1273,14 +1750,16 @@ def medical_record_edit_submit(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute(
-        "UPDATE MedicalRecord SET MedicalCondition=%s, DiagnosisDate=%s, "
-        "RecoveryDate=%s, Status=%s WHERE RecordID=%s",
-        (medical_condition, diagnosis_date, recovery_date or None, status, record_id))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "UPDATE", "MedicalRecord", str(record_id), "SUCCESS",
-                    {"condition": medical_condition}, ip)
+    body = MedicalUpdate(
+        medical_condition=medical_condition,
+        diagnosis_date=diagnosis_date,
+        recovery_date=recovery_date or None,
+        status=status,
+    )
+    try:
+        api_update_medical_record(record_id, body, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/members/{member_id}", error=exc.detail)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
 
@@ -1295,14 +1774,12 @@ def medical_record_delete(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
-    ip = request.client.host if request.client else "unknown"
-    track_db.execute("DELETE FROM MedicalRecord WHERE RecordID=%s", (record_id,))
-    write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                    "DELETE", "MedicalRecord", str(record_id), "SUCCESS", None, ip)
+    try:
+        api_delete_medical_record(record_id, request, current_user, track_db, auth_db)
+    except HTTPException as exc:
+        return _flash_redirect(f"/ui/members/{member_id}", error=exc.detail)
     return RedirectResponse(f"/ui/members/{member_id}", status_code=303)
 
-
-# ── Admin audit ────────────────────────────────────────────────────────────────
 
 @router.get("/admin/audit", response_class=HTMLResponse)
 def audit_page(
@@ -1312,15 +1789,34 @@ def audit_page(
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/dashboard", status_code=303)
-    auth_db.execute("SELECT * FROM audit_log ORDER BY log_id DESC LIMIT 100")
-    logs = auth_db.fetchall()
-    for log in logs:
-        log["timestamp"] = str(log["timestamp"])
-    return templates.TemplateResponse("admin/audit.html",
+    logs = api_get_audit_log(limit=100, current_user=current_user, db=auth_db)["data"]
+    return templates.TemplateResponse(request, "admin/audit.html",
                                       _ctx(request, current_user, active="audit", logs=logs))
 
 
-# ── Root redirect ──────────────────────────────────────────────────────────────
+@router.post("/admin/verify-audit")
+def verify_audit(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return {"error": "Unauthorized"}
+    return api_verify_audit(current_user=current_user, db=auth_db)
+
+
+@router.get("/admin/direct-modifications", response_class=HTMLResponse)
+def direct_modifications_page(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    auth_db=Depends(get_auth_db),
+):
+    if current_user["role"] != "Admin":
+        return RedirectResponse("/ui/dashboard", status_code=303)
+    entries = api_get_direct_modifications(limit=100, current_user=current_user, db=auth_db)["data"]
+    return templates.TemplateResponse(request, "admin/direct_modifications.html",
+                                      _ctx(request, current_user, active="tamper", entries=entries))
+
 
 @router.get("/", response_class=HTMLResponse)
 def root():

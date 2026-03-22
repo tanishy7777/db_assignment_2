@@ -2,14 +2,19 @@ import hashlib
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 
-# Flat-file audit logger (append-only)
+_audit_lock = threading.Lock()
+
 _log_path = os.path.join(os.path.dirname(__file__), "..", "..", "logs", "audit.log")
+
 _log_path = os.path.abspath(_log_path)
 
 _file_logger = logging.getLogger("audit")
+
 _file_logger.setLevel(logging.INFO)
+
 if not _file_logger.handlers:
     os.makedirs(os.path.dirname(_log_path), exist_ok=True)
     _handler = logging.FileHandler(_log_path, encoding="utf-8")
@@ -47,56 +52,48 @@ def write_audit_log(
     details,
     ip_address: str,
 ) -> None:
-    # Step 1: get prev_hash
-    db.execute("SELECT entry_hash FROM audit_log ORDER BY log_id DESC LIMIT 1")
-    last = db.fetchone()
-    prev_hash = last["entry_hash"] if last else "0" * 64
-
-    # Step 2: compute this entry's hash
-    # Format to ms precision only — matches what MySQL TIMESTAMP(3) stores back
-    _now = datetime.now(timezone.utc)
-    _ms  = _now.microsecond // 1000
-    ts   = _now.strftime("%Y-%m-%d %H:%M:%S") + f".{_ms:03d}"
-    details_str = json.dumps(details) if details is not None else None
-    entry_hash = _compute_entry_hash(
-        ts, user_id, username, action,
-        table_name, record_id, status, details_str, ip_address, prev_hash,
-    )
-
-    # Step 3: insert into DB
-    db.execute(
-        """
-        INSERT INTO audit_log
-            (timestamp, user_id, username, action, table_name, record_id,
-             status, details, ip_address, prev_hash, entry_hash)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (
-            ts, user_id, username, action, table_name, record_id,
-            status, details_str, ip_address, prev_hash, entry_hash,
-        ),
-    )
-
-    # Step 4: write to flat file
-    _file_logger.info(
-        f"{ts} | {username} | {action} | {table_name} | {status} | hash={entry_hash}"
-    )
+    with _audit_lock:
+        db.execute("SELECT entry_hash FROM audit_log ORDER BY log_id DESC LIMIT 1")
+        last = db.fetchone()
+        prev_hash = last["entry_hash"] if last else "0" * 64
+        _now = datetime.now(timezone.utc)
+        _ms  = _now.microsecond // 1000
+        ts   = _now.strftime("%Y-%m-%d %H:%M:%S") + f".{_ms:03d}"
+        details_str = json.dumps(details) if details is not None else None
+        entry_hash = _compute_entry_hash(
+            ts, user_id, username, action,
+            table_name, record_id, status, details_str, ip_address, prev_hash,
+        )
+        db.execute(
+            """
+            INSERT INTO audit_log
+                (timestamp, user_id, username, action, table_name, record_id,
+                 status, details, ip_address, prev_hash, entry_hash)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                ts, user_id, username, action, table_name, record_id,
+                status, details_str, ip_address, prev_hash, entry_hash,
+            ),
+        )
+        _file_logger.info(
+            f"{ts} | {username} | {action} | {table_name} | {status} | hash={entry_hash}"
+        )
 
 
 def verify_audit_chain(db) -> dict:
     db.execute("SELECT * FROM audit_log ORDER BY log_id ASC")
     entries = db.fetchall()
-
     prev_hash = "0" * 64
     for entry in entries:
-        # Normalise datetime → "YYYY-MM-DD HH:MM:SS.mmm" to match write format
         ts_val = entry["timestamp"]
         if hasattr(ts_val, "strftime"):
             _ms  = ts_val.microsecond // 1000
             ts_str = ts_val.strftime("%Y-%m-%d %H:%M:%S") + f".{_ms:03d}"
         else:
             ts_str = str(ts_val)
-
+        if entry.get("prev_hash", prev_hash) != prev_hash:
+            return {"intact": False, "tampered_at_log_id": entry["log_id"]}
         expected = _compute_entry_hash(
             ts_str, entry["user_id"], entry["username"],
             entry["action"], entry["table_name"], entry["record_id"],
@@ -106,5 +103,4 @@ def verify_audit_chain(db) -> dict:
         if expected != entry["entry_hash"]:
             return {"intact": False, "tampered_at_log_id": entry["log_id"]}
         prev_hash = entry["entry_hash"]
-
     return {"intact": True, "total_entries": len(entries)}

@@ -32,13 +32,13 @@
             <div class="col-md-6">
               <label class="form-label">Event Name</label>
               <input type="text" name="event_name" class="form-control" required
-                     value="{{ event.EventName if event else '' }}"/>
+                     value="{{ form_data.get('event_name','') or (event.EventName if event else '') }}"/>
             </div>
             <div class="col-md-3">
               <label class="form-label">Sport</label>
               <select name="sport_id" class="form-select" required>
                 {% for s in sports %}
-                <option value="{{ s.SportID }}" {% if event and s.SportID == event.SportID %}selected{% endif %}>
+                <option value="{{ s.SportID }}" {% if form_data.get('sport_id')|string == s.SportID|string or (event and s.SportID == event.SportID and not form_data.get('sport_id')) %}selected{% endif %}>
                   {{ s.SportName }}
                 </option>
                 {% endfor %}
@@ -48,7 +48,7 @@
               <label class="form-label">Venue</label>
               <select name="venue_id" class="form-select" required>
                 {% for v in venues %}
-                <option value="{{ v.VenueID }}" {% if event and v.VenueID == event.VenueID %}selected{% endif %}>
+                <option value="{{ v.VenueID }}" {% if form_data.get('venue_id')|string == v.VenueID|string or (event and v.VenueID == event.VenueID and not form_data.get('venue_id')) %}selected{% endif %}>
                   {{ v.VenueName }}
                 </option>
                 {% endfor %}
@@ -60,7 +60,7 @@
                 <option value="">— Standalone —</option>
                 {% for t in tournaments %}
                 <option value="{{ t.TournamentID }}"
-                  {% if event and event.TournamentID and t.TournamentID == event.TournamentID %}selected{% endif %}>
+                  {% if form_data.get('tournament_id')|string == t.TournamentID|string or (event and event.TournamentID and t.TournamentID == event.TournamentID and form_data.get('tournament_id') is none) %}selected{% endif %}>
                   {{ t.TournamentName }}
                 </option>
                 {% endfor %}
@@ -69,31 +69,31 @@
             <div class="col-md-3">
               <label class="form-label">Event Date</label>
               <input type="date" name="event_date" class="form-control" required
-                     value="{{ event.EventDate if event else '' }}"/>
+                     value="{{ form_data.get('event_date','') or (event.EventDate if event else '') }}"/>
             </div>
             <div class="col-md-2">
               <label class="form-label">Start Time</label>
               <input type="time" name="start_time" class="form-control" required
-                     value="{{ event.StartTime if event else '' }}"/>
+                     value="{{ form_data.get('start_time','') or (event.StartTime if event else '') }}"/>
             </div>
             <div class="col-md-2">
               <label class="form-label">End Time</label>
               <input type="time" name="end_time" class="form-control" required
-                     value="{{ event.EndTime if event else '' }}"/>
+                     value="{{ form_data.get('end_time','') or (event.EndTime if event else '') }}"/>
             </div>
             <div class="col-md-2">
               <label class="form-label">Status</label>
               <select name="status" class="form-select" required>
-                <option value="Scheduled" {% if event and event.Status == 'Scheduled' %}selected{% endif %}>Scheduled</option>
-                <option value="Ongoing" {% if event and event.Status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
-                <option value="Completed" {% if event and event.Status == 'Completed' %}selected{% endif %}>Completed</option>
-                <option value="Cancelled" {% if event and event.Status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                <option value="Scheduled" {% if form_data.get('status') == 'Scheduled' or (event and event.Status == 'Scheduled' and not form_data.get('status')) %}selected{% endif %}>Scheduled</option>
+                <option value="Ongoing" {% if form_data.get('status') == 'Ongoing' or (event and event.Status == 'Ongoing' and not form_data.get('status')) %}selected{% endif %}>Ongoing</option>
+                <option value="Completed" {% if form_data.get('status') == 'Completed' or (event and event.Status == 'Completed' and not form_data.get('status')) %}selected{% endif %}>Completed</option>
+                <option value="Cancelled" {% if form_data.get('status') == 'Cancelled' or (event and event.Status == 'Cancelled' and not form_data.get('status')) %}selected{% endif %}>Cancelled</option>
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label">Round <span class="text-muted">(optional)</span></label>
               <input type="text" name="round_name" class="form-control" placeholder="e.g. Quarter-Final"
-                     value="{{ event.Round if event and event.Round else '' }}"/>
+                     value="{{ form_data.get('round_name','') or (event.Round if event and event.Round else '') }}"/>
             </div>
           </div>
           <div class="mt-4">
