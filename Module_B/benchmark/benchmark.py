@@ -27,7 +27,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 RESULTS_DIR.mkdir(exist_ok=True)
 
-DB_CONFIG = dict(host="127.0.0.1", user="olympia_app", password="root")
+DB_CONFIG = dict(host="127.0.0.1", user="olympia_app", password="olympia_pass")
 
 CREDENTIALS = {
     "admin":  {"username": "vikram_admin",  "password": "admin123"},
@@ -116,6 +116,43 @@ def bench(session: requests.Session, method: str, url: str, n: int = N_REQUESTS)
     }
 
 
+def measure_sql(db_name: str, sql: str, params: tuple, n: int = N_REQUESTS) -> dict:
+    """Measure raw SQL execution time."""
+    conn = mysql.connector.connect(**DB_CONFIG, database=db_name)
+    cur = conn.cursor()
+    times = []
+    
+    # Warmup
+    try:
+        cur.execute(sql, params)
+        cur.fetchall()
+    except Exception:
+        pass
+
+    for _ in range(n):
+        t0 = time.perf_counter()
+        try:
+            cur.execute(sql, params)
+            cur.fetchall()
+            times.append((time.perf_counter() - t0) * 1000)
+        except Exception:
+            pass
+    
+    cur.close()
+    conn.close()
+
+    if not times:
+        return {"mean": 0, "p95": 0, "min": 0, "max": 0}
+
+    times.sort()
+    return {
+        "min":    round(times[0], 3),
+        "mean":   round(statistics.mean(times), 3),
+        "p95":    round(times[int(0.95 * len(times))], 3),
+        "max":    round(times[-1], 3),
+    }
+
+
 def build_endpoints(ids: dict) -> list:
     """Returns list of (label, role, method, path)."""
     mid  = ids["Member"]
@@ -127,8 +164,8 @@ def build_endpoints(ids: dict) -> list:
         ("GET /api/members [admin]",                  "admin",  "GET", "/api/members"),
         ("GET /api/members [coach]",                  "coach",  "GET", "/api/members"),
         ("GET /api/members/me [player]",              "player", "GET", "/api/members/me"),
-        (f"GET /api/members/{mid} [admin]",           "admin",  "GET", f"/api/members/{mid}"),
-        (f"GET /api/members/{mid} [coach]",           "coach",  "GET", f"/api/members/{mid}"),
+        (f"GET /api/members/{pmid} [admin]",          "admin",  "GET", f"/api/members/{pmid}"),
+        (f"GET /api/members/{pmid} [coach]",          "coach",  "GET", f"/api/members/{pmid}"),
         ("GET /api/teams [admin]",                    "admin",  "GET", "/api/teams"),
         (f"GET /api/teams/{tid} [admin]",             "admin",  "GET", f"/api/teams/{tid}"),
         ("GET /api/tournaments [admin]",              "admin",  "GET", "/api/tournaments"),
@@ -150,7 +187,6 @@ def build_endpoints(ids: dict) -> list:
 
 def build_explain_queries(ids: dict) -> dict:
     """Returns {label: (db_name, sql, params)} for EXPLAIN analysis."""
-    mid  = ids["Member"]
     tnid = ids["Tournament"]
     cmid = ids["CoachMemberID"]
     pmid = ids["PlayerMemberID"]
@@ -160,14 +196,14 @@ def build_explain_queries(ids: dict) -> dict:
             "SELECT * FROM Member ORDER BY MemberID",
             (),
         ),
-        f"GET /api/members/{mid} [admin]": (
+        f"GET /api/members/{pmid} [admin]": (
             "olympia_track",
             "SELECT t.TeamID, t.TeamName, tm.Position, tm.IsCaptain, s.SportName "
             "FROM TeamMember tm "
             "JOIN Team t  ON tm.TeamID  = t.TeamID "
             "JOIN Sport s ON t.SportID  = s.SportID "
             "WHERE tm.MemberID = %s",
-            (mid,),
+            (pmid,),
         ),
         "GET /api/teams [admin]": (
             "olympia_track",
@@ -197,6 +233,16 @@ def build_explain_queries(ids: dict) -> dict:
             "LEFT JOIN Tournament t ON e.TournamentID = t.TournamentID "
             "WHERE e.TournamentID = %s ORDER BY e.EventDate DESC",
             (tnid,),
+        ),
+        "GET /api/events?sport_id=1": (
+            "olympia_track",
+            "SELECT e.*, s.SportName, v.VenueName, t.TournamentName "
+            "FROM Event e "
+            "JOIN Sport s ON e.SportID = s.SportID "
+            "JOIN Venue v ON e.VenueID = v.VenueID "
+            "LEFT JOIN Tournament t ON e.TournamentID = t.TournamentID "
+            "WHERE e.SportID = 1 ORDER BY e.EventDate DESC",
+            (),
         ),
         "GET /api/equipment/issues [admin]": (
             "olympia_track",
@@ -268,21 +314,38 @@ def run_mode(mode: str, ids: dict, n_requests: int, endpoints_override: list = N
     print(f"{'='*60}\n")
     sessions = {role: login(role) for role in ("admin", "coach", "player")}
     results = {}
+    
+    print(f"  Benchmarking API Latency...")
     for label, role, method, path in endpoints:
         url = BASE_URL + path
         print(f"  {label:<52}", end=" ", flush=True)
         stats = bench(sessions[role], method, url, n=n_requests)
         results[label] = stats
         print(f"mean={stats['mean']:6.1f}ms  p95={stats['p95']:6.1f}ms  errors={stats['errors']}")
+    
+    sql_results = {}
+    print(f"\n  Benchmarking SQL Execution Time...")
+    for label, (db_name, sql, params) in explain_queries.items():
+        print(f"  {label:<52}", end=" ", flush=True)
+        stats = measure_sql(db_name, sql, params, n=n_requests)
+        sql_results[label] = stats
+        print(f"mean={stats['mean']:6.3f}ms  p95={stats['p95']:6.3f}ms")
+
     explain_out = {}
-    print(f"\n  Running EXPLAIN on {len(explain_queries)} queries...")
+    print(f"\n  Capturing EXPLAIN plans...")
     for label, (db_name, sql, params) in explain_queries.items():
         try:
             explain_out[label] = run_explain(db_name, sql, params)
         except Exception as ex:
             explain_out[label] = [{"error": str(ex)}]
+
     out_file = RESULTS_DIR / f"{mode}.json"
-    out_file.write_text(json.dumps({"results": results, "explain": explain_out}, indent=2, default=str))
+    out_file.write_text(json.dumps({
+        "results": results, 
+        "sql_results": sql_results, 
+        "explain": explain_out
+    }, indent=2, default=str))
+    
     exp_file = RESULTS_DIR / f"{mode}_explain.txt"
     with exp_file.open("w") as f:
         for label, rows in explain_out.items():
@@ -317,6 +380,8 @@ def generate_report():
     after_data  = json.loads(after_file.read_text())
     before      = before_data["results"]
     after       = after_data["results"]
+    before_sql  = before_data.get("sql_results", {})
+    after_sql   = after_data.get("sql_results", {})
     before_exp  = before_data.get("explain", {})
     after_exp   = after_data.get("explain", {})
     lines = [
@@ -334,6 +399,24 @@ def generate_report():
             f"| `{label}` | {b.get('mean', '—')} | {a['mean']} "
             f"| {b.get('p95', '—')} | {a['p95']} | {sign} |"
         )
+
+    lines.append("\n## SQL Execution Time Comparison (ms)\n")
+    lines.append("| Query | Before mean | After mean | Before p95 | After p95 | Δ p95 |")
+    lines.append("|-------|-------------|------------|------------|-----------|-------|")
+
+    # Use keys from before/after combined to cover all cases
+    all_sql_keys = set(before_sql.keys()) | set(after_sql.keys())
+    for label in sorted(all_sql_keys):
+        b = before_sql.get(label, {})
+        a = after_sql.get(label, {})
+        if not b or not a: 
+            continue
+        delta = round(b.get("p95", 0) - a.get("p95", 0), 3)
+        lines.append(
+            f"| `{label}` | {b.get('mean', '-')} | {a.get('mean', '-')} "
+            f"| {b.get('p95', '-')} | {a.get('p95', '-')} | {delta} |"
+        )
+
     lines.append("\n## EXPLAIN Access Plan Changes\n")
     for label in sorted(after_exp.keys()):
         b_rows = before_exp.get(label, [])
