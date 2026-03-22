@@ -184,7 +184,7 @@ def test_teams_router_endpoints(admin_user, monkeypatch):
             formed_date="2024-01-10",
             coach_id=2,
             captain_id=1,
-            member_ids=[1, 3],
+            members=[teams.TeamMemberEntry(member_id=1), teams.TeamMemberEntry(member_id=3)],
         ),
         make_request("/api/teams", method="POST"),
         current_user=admin_user,
@@ -595,7 +595,7 @@ def test_registration_and_admin_router_endpoints(admin_user, monkeypatch):
         2,
         make_request("/api/registrations/tournament/1/team/2", method="DELETE"),
         current_user=admin_user,
-        track_db=ScriptedDB(fetchone_values=[{"RegID": 9}]),
+        track_db=ScriptedDB(fetchone_values=[{"TeamID": 2, "CoachID": 99}, {"RegID": 9}]),
         auth_db=ScriptedDB(),
     )
     assert unregister_result["success"] is True

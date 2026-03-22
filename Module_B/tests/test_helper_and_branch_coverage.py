@@ -256,9 +256,9 @@ def test_performance_and_registration_branch_guards(coach_user, admin_user, monk
 def test_team_helper_and_guard_branches(admin_user, coach_user, monkeypatch):
     from app.routers import teams
     monkeypatch.setattr(teams, "write_audit_log", lambda *a, **kw: None)
-    assert teams._normalize_member_ids([]) == []
+    assert teams._normalize_members([]) == []
     with pytest.raises(HTTPException):
-        teams._normalize_member_ids([1, 1])
+        teams._normalize_members([teams.TeamMemberEntry(member_id=1), teams.TeamMemberEntry(member_id=1)])
     with pytest.raises(HTTPException) as exc_info:
         teams._validate_team_members(
             ScriptedDB(fetchall_values=[[{"MemberID": 1, "Role": "Player"}]]),
@@ -276,7 +276,7 @@ def test_team_helper_and_guard_branches(admin_user, coach_user, monkeypatch):
     track_db = ScriptedDB(
         fetchall_values=[[{"MemberID": 1, "JoinDate": "2024-01-01", "Position": None}, {"MemberID": 2, "JoinDate": "2024-01-01", "Position": None}]]
     )
-    teams._sync_team_members(track_db, 7, [1, 3], 3, "2024-01-01")
+    teams._sync_team_members(track_db, 7, [teams.TeamMemberEntry(member_id=1), teams.TeamMemberEntry(member_id=3)], 3, "2024-01-01")
     executed_sql = [query for query, _ in track_db.executed]
     assert any("DELETE FROM TeamMember" in query for query in executed_sql)
     assert any("UPDATE TeamMember SET IsCaptain = %s" in query for query in executed_sql)
@@ -350,9 +350,16 @@ def test_ui_helper_and_redirect_branches(monkeypatch, admin_user, coach_user):
         ui_routes._parse_optional_int("abc", "ID")
     class DummyForm:
         def getlist(self, key):
-            assert key == "member_ids"
-            return ["1", "", "2"]
-    assert ui_routes._parse_member_ids(DummyForm()) == [1, 2]
+            if key == "member_ids":
+                return ["1", "", "2"]
+            if key == "member_positions":
+                return ["pos1", "", "pos2"]
+            return []
+    from app.routers.teams import TeamMemberEntry
+    assert ui_routes._parse_members(DummyForm()) == [
+        TeamMemberEntry(member_id=1, position="pos1"),
+        TeamMemberEntry(member_id=2, position="pos2"),
+    ]
     defaults = ui_routes._member_form_defaults(form_data={"ContactNumber": "+919876543210"})
     assert defaults["ContactCountryCode"] == "+91"
     assert ui_routes.login_page(make_request("/ui/login")).status_code == 200
@@ -466,7 +473,7 @@ def test_member_and_team_ui_error_branches(monkeypatch, admin_user, coach_user):
         def getlist(self, _key):
             return ["x"]
     with pytest.raises(ValueError):
-        ui_routes._parse_member_ids(BadForm())
+        ui_routes._parse_members(BadForm())
     prepared = ui_routes._member_form_defaults(
         form_data={"ContactCountryCode": "+1", "ContactNumberLocal": "1234567890"}
     )
@@ -1684,7 +1691,7 @@ def test_registration_router_branch_coverage(monkeypatch, admin_user, coach_user
         2,
         make_request("/api/registrations/tournament/1/team/2", method="DELETE"),
         current_user=admin_user,
-        track_db=ScriptedDB(fetchone_values=[{"RegID": 7}]),
+        track_db=ScriptedDB(fetchone_values=[{"TeamID": 2, "CoachID": 99}, {"RegID": 7}]),
         auth_db=ScriptedDB(),
     )
     assert result["success"] is True
@@ -2236,7 +2243,7 @@ def test_remaining_team_router_branches(monkeypatch, admin_user, coach_user):
     monkeypatch.setattr(teams, "_sync_team_members", original_sync_team_members)
     result = teams.update_team(
         1,
-        teams.TeamUpdate(member_ids=[1]),
+        teams.TeamUpdate(members=[teams.TeamMemberEntry(member_id=1)]),
         make_request("/api/teams/1", method="PUT"),
         current_user=admin_user,
         track_db=ScriptedDB(

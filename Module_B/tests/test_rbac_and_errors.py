@@ -334,7 +334,7 @@ def test_create_team_duplicate_member_ids_is_400(admin_user, monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         teams.create_team(
             teams.TeamCreate(
-                team_name="X", sport_id=1, formed_date="2024-01-01", member_ids=[1, 1]
+                team_name="X", sport_id=1, formed_date="2024-01-01", members=[teams.TeamMemberEntry(member_id=1), teams.TeamMemberEntry(member_id=1)]
             ),
             make_request("/api/teams", method="POST"),
             current_user=admin_user,
