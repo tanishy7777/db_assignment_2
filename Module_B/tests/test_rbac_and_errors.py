@@ -116,12 +116,13 @@ def test_get_member_portfolio_player_viewing_own_is_allowed(player_user, monkeyp
 
 
 def test_get_member_portfolio_coach_viewing_player_has_no_medical(coach_user, monkeypatch):
-    """Coach viewing another player's portfolio receives an empty medical list."""
+    """Coach viewing a player they coach gets an empty medical list when there are no records."""
     from app.routers import members
     monkeypatch.setattr(members, "write_audit_log", lambda *a, **kw: None)
     track_db = ScriptedDB(
         fetchone_values=[{"MemberID": 1, "Role": "Player"}],
-        fetchall_values=[[], []],
+        # teams, perf logs, medical records (all empty for this player)
+        fetchall_values=[[], [], []],
     )
     result = members.get_member_portfolio(
         1,
@@ -131,7 +132,6 @@ def test_get_member_portfolio_coach_viewing_player_has_no_medical(coach_user, mo
         auth_db=ScriptedDB(),
     )
     assert result["data"]["medical"] == []
-    assert all("MedicalRecord" not in query for query, _ in track_db.executed)
 
 
 def test_get_medical_record_player_accessing_other_member_is_403(player_user, monkeypatch):

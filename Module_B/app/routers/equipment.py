@@ -5,6 +5,7 @@ from app.auth.dependencies import get_current_user, require_admin, require_admin
 from app.database import get_auth_db, get_track_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
+from app.services.rbac import assert_coach_manages_member
 from app.services.validation import humanize_db_error, parse_iso_date, validate_date_order, validate_not_future
 
 router = APIRouter()
@@ -33,22 +34,6 @@ class IssueCreate(BaseModel):
     quantity:     int
     return_date:  Optional[str] = None
 
-
-def _ensure_coach_can_manage_member(track_db, current_user: dict, member_id: int) -> None:
-    if current_user["role"] != "Coach":
-        return
-    track_db.execute(
-        """
-        SELECT 1
-        FROM TeamMember tm
-        JOIN Team t ON tm.TeamID = t.TeamID
-        WHERE tm.MemberID = %s AND t.CoachID = %s
-        LIMIT 1
-        """,
-        (member_id, current_user["member_id"]),
-    )
-    if not track_db.fetchone():
-        raise HTTPException(status_code=403, detail="Coach can only manage equipment for players on their teams.")
 
 
 def _get_equipment_or_404(track_db, equipment_id: int) -> dict:
@@ -328,7 +313,7 @@ def issue_equipment(
     issue_id = body.issue_id
     if body.quantity <= 0:
         raise HTTPException(status_code=400, detail="Quantity must be a positive number.")
-    _ensure_coach_can_manage_member(track_db, current_user, body.member_id)
+    assert_coach_manages_member(track_db, current_user, body.member_id)
     track_db.execute(
         """
         SELECT e.TotalQuantity,
@@ -400,7 +385,7 @@ def return_equipment(
     if not issue:
         raise HTTPException(status_code=404, detail="Issue record not found")
     if current_user["role"] == "Coach":
-        _ensure_coach_can_manage_member(track_db, current_user, issue["MemberID"])
+        assert_coach_manages_member(track_db, current_user, issue["MemberID"])
     if issue.get("ReturnDate"):
         raise HTTPException(status_code=400, detail="This equipment issue has already been returned.")
     try:

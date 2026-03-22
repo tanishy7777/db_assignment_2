@@ -112,10 +112,10 @@ def _ctx(request: Request, current_user: dict, **extra):
     return {"request": request, "current_user": current_user, "flash": flash, **extra}
 
 
-def _flash_redirect(url: str, error: str = None, success: str = None) -> RedirectResponse:
+def _flash_redirect(url: str, error: Optional[str] = None, success: Optional[str] = None) -> RedirectResponse:
     msg = error or success
     key = "error" if error else "success"
-    return RedirectResponse(f"{url}?{key}={quote_plus(msg)}", status_code=303)
+    return RedirectResponse(f"{url}?{key}={quote_plus(msg or '')}", status_code=303)
 
 
 def _copy_set_cookie(source: Response, target: RedirectResponse) -> None:
@@ -426,12 +426,28 @@ def member_portfolio(
         m2["DiagnosisDate"] = str(m2["DiagnosisDate"])
         if m2.get("RecoveryDate"):
             m2["RecoveryDate"] = str(m2["RecoveryDate"])
+    # determine whether the current user may see the medical section
+    if current_user["role"] == "Admin" or current_user["member_id"] == member_id:
+        can_view_medical = True
+    elif current_user["role"] == "Coach":
+        track_db.execute(
+            """
+            SELECT 1 FROM TeamMember tm
+            JOIN Team t ON tm.TeamID = t.TeamID
+            WHERE tm.MemberID = %s AND t.CoachID = %s
+            LIMIT 1
+            """,
+            (member_id, current_user["member_id"]),
+        )
+        can_view_medical = track_db.fetchone() is not None
+    else:
+        can_view_medical = False
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
     return templates.TemplateResponse(request, "members/portfolio.html", _ctx(
         request, current_user, active="members",
         member=member, teams=teams, performance=performance, medical=medical,
-        sports=sports,
+        sports=sports, can_view_medical=can_view_medical,
     ))
 
 
@@ -609,8 +625,8 @@ async def team_create(
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse("/ui/teams", status_code=303)
     form = await request.form()
-    team_name = (form.get("team_name") or "").strip()
-    formed_date = (form.get("formed_date") or "").strip()
+    team_name = str(form.get("team_name") or "").strip()
+    formed_date = str(form.get("formed_date") or "").strip()
     raw_ids = form.getlist("member_ids") or [""]
     raw_positions = form.getlist("member_positions") or [""]
     raw_members = [{"member_id": raw_ids[i], "position": raw_positions[i] if i < len(raw_positions) else ""}
@@ -699,8 +715,8 @@ async def team_edit_submit(
     if current_user["role"] not in ("Admin", "Coach"):
         return RedirectResponse(f"/ui/teams/{team_id}", status_code=303)
     form = await request.form()
-    team_name = (form.get("team_name") or "").strip()
-    formed_date = (form.get("formed_date") or "").strip()
+    team_name = str(form.get("team_name") or "").strip()
+    formed_date = str(form.get("formed_date") or "").strip()
     raw_ids = form.getlist("member_ids") or [""]
     raw_positions = form.getlist("member_positions") or [""]
     raw_members = [{"member_id": raw_ids[i], "position": raw_positions[i] if i < len(raw_positions) else ""}
@@ -1289,10 +1305,10 @@ async def event_edit_participation(
     form = await request.form()
     
     # Get the raw string values
-    score = form.get("score", "").strip()
-    event_rank = form.get("event_rank", "").strip()
-    result = form.get("result", "").strip()
-    remarks = form.get("remarks", "").strip()
+    score = str(form.get("score") or "").strip()
+    event_rank = str(form.get("event_rank") or "").strip()
+    result = str(form.get("result") or "").strip()
+    remarks = str(form.get("remarks") or "").strip()
     
     # Parse rank (keep as integer), but leave score as a string
     parsed_rank = int(event_rank) if event_rank else None

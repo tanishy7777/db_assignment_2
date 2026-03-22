@@ -1314,10 +1314,11 @@ def test_performance_router_failure_and_branch_coverage(monkeypatch, admin_user,
     assert admin_result["data"][0]["RecordDate"] == "2024-03-01"
     assert coach_result["data"][0]["RecordDate"] == "2024-03-01"
     assert player_result["data"][0]["RecordDate"] == "2024-03-01"
+    from app.services import rbac as rbac_module
     with pytest.raises(HTTPException) as exc_info:
-        performance._ensure_coach_can_manage_member(ScriptedDB(fetchone_values=[None]), coach_user, 5)
+        rbac_module.assert_coach_manages_member(ScriptedDB(fetchone_values=[None]), coach_user, 5)
     assert exc_info.value.status_code == 403
-    performance._ensure_coach_can_manage_member(ScriptedDB(), admin_user, 5)
+    rbac_module.assert_coach_manages_member(ScriptedDB(), admin_user, 5)
     with pytest.raises(HTTPException) as exc_info:
         performance.create_performance_log(
             performance.PerfLogCreate(member_id=3, sport_id=1, metric_name="Speed", metric_value=9.7, record_date="2099-01-01"),
@@ -1438,10 +1439,11 @@ def test_tournament_router_failure_and_branch_coverage(monkeypatch, admin_user, 
 def test_equipment_router_failure_and_branch_coverage(monkeypatch, admin_user, coach_user, player_user):
     from app.routers import equipment
     monkeypatch.setattr(equipment, "write_audit_log", lambda *args, **kwargs: None)
+    from app.services import rbac as rbac_module
     with pytest.raises(HTTPException) as exc_info:
-        equipment._ensure_coach_can_manage_member(ScriptedDB(fetchone_values=[None]), coach_user, 4)
+        rbac_module.assert_coach_manages_member(ScriptedDB(fetchone_values=[None]), coach_user, 4)
     assert exc_info.value.status_code == 403
-    equipment._ensure_coach_can_manage_member(ScriptedDB(), admin_user, 4)
+    rbac_module.assert_coach_manages_member(ScriptedDB(), admin_user, 4)
     with pytest.raises(HTTPException):
         equipment.create_equipment(
             equipment.EquipmentCreate(equipment_name="Cone", total_quantity=-1, equipment_condition="New"),

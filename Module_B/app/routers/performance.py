@@ -5,6 +5,7 @@ from app.auth.dependencies import get_current_user, require_admin_or_coach
 from app.database import get_auth_db, get_track_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
+from app.services.rbac import assert_coach_manages_member
 from app.services.validation import humanize_db_error, parse_iso_date, validate_not_future
 
 router = APIRouter()
@@ -30,22 +31,6 @@ def _validate_record_date(record_date: str) -> None:
     parsed_date = parse_iso_date(record_date, "Record date")
     validate_not_future(parsed_date, "Record date")
 
-
-def _ensure_coach_can_manage_member(track_db, current_user: dict, member_id: int) -> None:
-    if current_user["role"] != "Coach":
-        return
-    track_db.execute(
-        """
-        SELECT 1
-        FROM TeamMember tm
-        JOIN Team t ON tm.TeamID = t.TeamID
-        WHERE tm.MemberID = %s AND t.CoachID = %s
-        LIMIT 1
-        """,
-        (member_id, current_user["member_id"]),
-    )
-    if not track_db.fetchone():
-        raise HTTPException(status_code=403, detail="Coach can only manage performance logs for their own players.")
 
 
 @router.get("/{log_id}")
@@ -159,7 +144,7 @@ def create_performance_log(
         _validate_record_date(body.record_date)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    _ensure_coach_can_manage_member(track_db, current_user, body.member_id)
+    assert_coach_manages_member(track_db, current_user, body.member_id)
     try:
         log_id = insert_with_generated_id(
             track_db,
@@ -197,7 +182,7 @@ def update_performance_log(
     if not row:
         raise HTTPException(status_code=404, detail="Log not found")
     if current_user["role"] == "Coach":
-        _ensure_coach_can_manage_member(track_db, current_user, row["MemberID"])
+        assert_coach_manages_member(track_db, current_user, row["MemberID"])
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -235,7 +220,7 @@ def delete_performance_log(
     if not row:
         raise HTTPException(status_code=404, detail="Log not found")
     if current_user["role"] == "Coach":
-        _ensure_coach_can_manage_member(track_db, current_user, row["MemberID"])
+        assert_coach_manages_member(track_db, current_user, row["MemberID"])
     track_db.execute("DELETE FROM PerformanceLog WHERE LogID=%s", (log_id,))
     write_audit_log(auth_db, current_user["user_id"], current_user["username"],
                     "DELETE", "PerformanceLog", str(log_id), "SUCCESS", None, ip)

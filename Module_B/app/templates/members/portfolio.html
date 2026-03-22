@@ -188,7 +188,7 @@
             {% endif %}
           </div>
 
-          {% if current_user.role == "Admin" or current_user.member_id == member.MemberID %}
+          {% if can_view_medical %}
           <div class="card">
             <div class="card-header">
               <h3 class="card-title">Medical Records</h3>

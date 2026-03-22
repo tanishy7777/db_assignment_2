@@ -5,6 +5,7 @@ from app.auth.dependencies import get_current_user, require_admin
 from app.database import get_auth_db, get_track_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
+from app.services.rbac import assert_coach_manages_member
 from app.services.validation import (
     derive_medical_status,
     humanize_db_error,
@@ -49,10 +50,17 @@ def get_medical_record(
     record = track_db.fetchone()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    if current_user["role"] != "Admin" and current_user["member_id"] != record["MemberID"]:
+    if current_user["role"] == "Admin":
+        pass
+    elif current_user["member_id"] == record["MemberID"]:
+        pass
+    elif current_user["role"] == "Coach":
+        assert_coach_manages_member(track_db, current_user, record["MemberID"],
+                                    detail="Coach can only view medical records of players on their teams.")
+    else:
         write_audit_log(auth_db, current_user["user_id"], current_user["username"],
                         "SELECT", "MedicalRecord", str(record_id), "UNAUTHORIZED",
-                        {"reason": "not admin and not own record"}, ip)
+                        {"reason": "not admin, not own record, not coach of player"}, ip)
         raise HTTPException(status_code=403, detail="Access denied")
     record["DiagnosisDate"] = str(record["DiagnosisDate"])
     if record.get("RecoveryDate"):
@@ -72,10 +80,14 @@ def get_medical_records(
 ):
     ip = request.client.host if request.client else "unknown"
     if current_user["role"] != "Admin" and current_user["member_id"] != member_id:
-        write_audit_log(auth_db, current_user["user_id"], current_user["username"],
-                        "SELECT", "MedicalRecord", str(member_id), "UNAUTHORIZED",
-                        {"reason": "not admin and not own record"}, ip)
-        raise HTTPException(status_code=403, detail="Access denied")
+        if current_user["role"] == "Coach":
+            assert_coach_manages_member(track_db, current_user, member_id,
+                                        detail="Coach can only view medical records of players on their teams.")
+        else:
+            write_audit_log(auth_db, current_user["user_id"], current_user["username"],
+                            "SELECT", "MedicalRecord", str(member_id), "UNAUTHORIZED",
+                            {"reason": "not admin, not own record, not coach of player"}, ip)
+            raise HTTPException(status_code=403, detail="Access denied")
     track_db.execute(
         "SELECT * FROM MedicalRecord WHERE MemberID = %s ORDER BY DiagnosisDate DESC",
         (member_id,),

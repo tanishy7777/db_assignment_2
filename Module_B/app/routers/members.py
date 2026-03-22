@@ -193,6 +193,21 @@ def get_member_portfolio(
             (member_id,),
         )
         medical = track_db.fetchall()
+    elif current_user["role"] == "Coach":
+        track_db.execute(
+            """
+            SELECT mr.* FROM MedicalRecord mr
+            WHERE mr.MemberID = %s
+              AND EXISTS (
+                  SELECT 1 FROM TeamMember tm
+                  JOIN Team t ON tm.TeamID = t.TeamID
+                  WHERE tm.MemberID = %s AND t.CoachID = %s
+              )
+            ORDER BY mr.DiagnosisDate DESC
+            """,
+            (member_id, member_id, current_user["member_id"]),
+        )
+        medical = track_db.fetchall()
     else:
         medical = []
     write_audit_log(
