@@ -72,7 +72,7 @@ def _validate_event_payload(event_date: str, start_time: str, end_time: str) -> 
     validate_time_order(parsed_start_time, parsed_end_time, "Start time", "End time")
 
 
-@router.get("/lookups")
+@router.get("/lookups", description="**Access:** Any authenticated user (Admin, Coach, Player). Returns dropdown options (sports, venues, tournaments) for event forms.")
 def get_event_form_options(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -98,7 +98,7 @@ def get_event_form_options(
     }
 
 
-@router.get("")
+@router.get("", description="**Access:** Any authenticated user (Admin, Coach, Player). Lists events with optional filters.")
 def list_events(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -136,7 +136,9 @@ def list_events(
     return {"success": True, "data": rows}
 
 
-@router.get("/{event_id}")
+@router.get("/{event_id}", description="**Access:** Any authenticated user (Admin, Coach, Player).\n\n"
+    "Returns event details and participating teams. "
+    "**Coach** sees only their own teams as eligible; Admin/Player see all eligible teams.")
 def get_event(
     event_id: int,
     request: Request,
@@ -198,7 +200,7 @@ def get_event(
     }
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin only.")
 def create_event(
     body: EventCreate,
     request: Request,
@@ -239,7 +241,7 @@ def create_event(
     return {"success": True, "message": "Event created", "data": {"event_id": event_id}}
 
 
-@router.put("/{event_id}")
+@router.put("/{event_id}", description="**Access:** Admin only.")
 def update_event(
     event_id: int,
     body: EventUpdate,
@@ -280,7 +282,7 @@ def update_event(
     return {"success": True, "message": "Event updated"}
 
 
-@router.delete("/{event_id}")
+@router.delete("/{event_id}", description="**Access:** Admin only.")
 def delete_event(
     event_id: int,
     request: Request,
@@ -296,7 +298,9 @@ def delete_event(
     return {"success": True, "message": f"Event {event_id} deleted"}
 
 
-@router.put("/{event_id}/participation/{team_id}")
+@router.put("/{event_id}/participation/{team_id}", description="**Access:** Admin or Coach of the team.\n\n"
+    "- **Admin** can update any team's participation.\n"
+    "- **Coach** can only update participation for teams they manage.")
 def update_participation(
     event_id: int,
     team_id: int,

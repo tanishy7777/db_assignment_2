@@ -62,7 +62,10 @@ def _can_view_member(current_user: dict, member_role: str, member_id: int) -> bo
     return current_user["member_id"] == member_id
 
 
-@router.get("")
+@router.get("", description="**Access:** Admin, Coach, Player.\n\n"
+    "- **Admin** sees all members with full details.\n"
+    "- **Coach** sees all Players and Coaches (limited fields).\n"
+    "- **Player** sees only other Players (limited fields).")
 def list_members(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -90,7 +93,7 @@ def list_members(
     return {"success": True, "data": rows}
 
 
-@router.get("/me")
+@router.get("/me", description="**Access:** Any authenticated user (Admin, Coach, Player). Returns the caller's own profile.")
 def get_my_profile(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -106,7 +109,11 @@ def get_my_profile(
     return {"success": True, "data": member}
 
 
-@router.get("/{member_id}")
+@router.get("/{member_id}", description="**Access:** Admin, Coach, Player (restricted).\n\n"
+    "- **Admin** can view any member's full portfolio (teams, performance logs, medical records).\n"
+    "- **Coach** can view any Player's profile; performance logs and medical records are only "
+    "included if the member is on one of the coach's teams.\n"
+    "- **Player** can only view their own portfolio.")
 def get_member_portfolio(
     member_id: int,
     request: Request,
@@ -238,7 +245,8 @@ def get_member_portfolio(
         }
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin only.\n\n"
+    "Atomically creates a Member record and a linked User account (cross-DB transaction).")
 def create_member(
     body: MemberCreate,
     request: Request,
@@ -312,7 +320,9 @@ def create_member(
     return {"success": True, "message": "Member created", "data": {"member_id": member_id, "member": body.model_dump()}}
 
 
-@router.put("/{member_id}")
+@router.put("/{member_id}", description="**Access:** Admin or the member themselves.\n\n"
+    "- **Admin** can update any member's profile.\n"
+    "- **Non-Admin** users can only update their own profile.")
 def update_member(
     member_id: int,
     body: MemberUpdate,
@@ -362,7 +372,8 @@ def update_member(
     return {"success": True, "message": "Member updated"}
 
 
-@router.delete("/{member_id}")
+@router.delete("/{member_id}", description="**Access:** Admin only.\n\n"
+    "Atomically deletes the Member record and linked User account (cross-DB transaction).")
 def delete_member(
     member_id: int,
     request: Request,

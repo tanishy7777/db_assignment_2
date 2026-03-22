@@ -6,7 +6,7 @@ from app.services.audit import verify_audit_chain
 router = APIRouter()
 
 
-@router.get("/audit-log")
+@router.get("/audit-log", description="**Access:** Admin only. Returns the audit log entries (most recent first).")
 def get_audit_log(
     limit: int = 100,
     current_user: dict = Depends(require_admin),
@@ -22,7 +22,7 @@ def get_audit_log(
     return {"success": True, "data": rows}
 
 
-@router.get("/verify-audit")
+@router.get("/verify-audit", description="**Access:** Admin only. Verifies the integrity of the audit log hash chain.")
 def verify_audit(
     current_user: dict = Depends(require_admin),
     db=Depends(get_auth_db),
@@ -31,7 +31,7 @@ def verify_audit(
     return {"success": True, "data": result}
 
 
-@router.get("/direct-modifications")
+@router.get("/direct-modifications", description="**Access:** Admin only. Detects direct database modifications that bypassed the application layer.")
 def get_direct_modifications(
     limit: int = 100,
     current_user: dict = Depends(require_admin),

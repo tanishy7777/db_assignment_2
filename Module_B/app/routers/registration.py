@@ -7,7 +7,9 @@ from app.services.id_generation import insert_with_generated_id
 router = APIRouter()
 
 
-@router.post("/tournament/{tournament_id}/team/{team_id}")
+@router.post("/tournament/{tournament_id}/team/{team_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can register any team.\n"
+    "- **Coach** can only register teams they manage.")
 def register_team_for_tournament(
     tournament_id: int,
     team_id: int,
@@ -47,7 +49,9 @@ def register_team_for_tournament(
     return {"success": True, "message": "Team registered for tournament.", "data": {"reg_id": next_id}}
 
 
-@router.delete("/tournament/{tournament_id}/team/{team_id}")
+@router.delete("/tournament/{tournament_id}/team/{team_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can unregister any team.\n"
+    "- **Coach** can only unregister teams they manage.")
 def unregister_team_from_tournament(
     tournament_id: int,
     team_id: int,
@@ -80,7 +84,11 @@ def unregister_team_from_tournament(
     return {"success": True, "message": "Team unregistered from tournament."}
 
 
-@router.post("/event/{event_id}/team/{team_id}")
+@router.post("/event/{event_id}/team/{team_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can add any team to an event.\n"
+    "- **Coach** can only add teams they manage.\n\n"
+    "Validates that the team's sport matches the event sport. "
+    "If the event belongs to a tournament, the team must be registered for that tournament first.")
 def add_team_to_event(
     event_id: int,
     team_id: int,
@@ -133,7 +141,9 @@ def add_team_to_event(
     return {"success": True, "message": "Team added to event.", "data": {"participation_id": next_id}}
 
 
-@router.delete("/event/{event_id}/team/{team_id}")
+@router.delete("/event/{event_id}/team/{team_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can remove any team from an event.\n"
+    "- **Coach** can only remove teams they manage.")
 def remove_team_from_event(
     event_id: int,
     team_id: int,

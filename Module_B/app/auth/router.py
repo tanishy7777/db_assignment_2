@@ -18,7 +18,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-@router.post("/login")
+@router.post("/login", description="**Access:** Public (unauthenticated). Rate-limited to 100 requests/minute.")
 @limiter.limit("100/minute")
 def login(
     body: LoginRequest,
@@ -88,7 +88,7 @@ def login(
     }
 
 
-@router.post("/logout")
+@router.post("/logout", description="**Access:** Any authenticated user (Admin, Coach, Player).")
 def logout(
     request: Request,
     response: Response,
@@ -112,7 +112,7 @@ def logout(
     return resp
 
 
-@router.get("/isAuth")
+@router.get("/isAuth", description="**Access:** Any authenticated user (Admin, Coach, Player). Returns current user info.")
 def is_auth(current_user: dict = Depends(get_current_user)):
     return {
         "success":    True,

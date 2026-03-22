@@ -132,7 +132,7 @@ def _sync_team_members(track_db, team_id: int, members: list[TeamMemberEntry], c
         )
 
 
-@router.get("")
+@router.get("", description="**Access:** Any authenticated user (Admin, Coach, Player). Lists all teams.")
 def list_teams(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -156,7 +156,8 @@ def list_teams(
     return {"success": True, "data": rows}
 
 
-@router.get("/{team_id}")
+@router.get("/{team_id}", description="**Access:** Any authenticated user (Admin, Coach, Player).\n\n"
+    "Returns team details, roster, and events. **Player** users cannot see other members' email addresses.")
 def get_team(
     team_id: int,
     request: Request,
@@ -211,7 +212,9 @@ def get_team(
     return {"success": True, "data": {"team": team, "roster": roster, "events": events}}
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can create a team with any coach.\n"
+    "- **Coach** can only create teams assigned to themselves (coach_id must be self or omitted).")
 def create_team(
     body: TeamCreate,
     request: Request,
@@ -253,7 +256,9 @@ def create_team(
     return {"success": True, "message": "Team created", "data": {"team_id": team_id}}
 
 
-@router.put("/{team_id}")
+@router.put("/{team_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can update any team.\n"
+    "- **Coach** can only update teams they manage (team.CoachID must match the current user).")
 def update_team(
     team_id: int,
     body: TeamUpdate,
@@ -325,7 +330,9 @@ def update_team(
     return {"success": True, "message": "Team updated"}
 
 
-@router.delete("/{team_id}")
+@router.delete("/{team_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can delete any team.\n"
+    "- **Coach** can only delete teams they manage (team.CoachID must match the current user).")
 def delete_team(
     team_id: int,
     request: Request,

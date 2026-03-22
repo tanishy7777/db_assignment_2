@@ -90,7 +90,7 @@ def _validate_equipment_payload(
             )
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin only.")
 def create_equipment(
     body: EquipmentCreate,
     request: Request,
@@ -130,7 +130,7 @@ def create_equipment(
     return {"success": True, "message": "Equipment created", "data": {"equipment_id": equipment_id}}
 
 
-@router.get("")
+@router.get("", description="**Access:** Any authenticated user (Admin, Coach, Player). Lists all equipment with availability info.")
 def list_equipment(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -160,7 +160,10 @@ def list_equipment(
     return {"success": True, "data": rows}
 
 
-@router.get("/issues")
+@router.get("/issues", description="**Access:** Admin, Coach, Player (filtered).\n\n"
+    "- **Admin** sees all equipment issues.\n"
+    "- **Coach** sees issues for members on their teams.\n"
+    "- **Player** sees only their own issues.")
 def list_issues(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -224,7 +227,7 @@ def list_issues(
     return {"success": True, "data": rows}
 
 
-@router.get("/{equipment_id}")
+@router.get("/{equipment_id}", description="**Access:** Any authenticated user (Admin, Coach, Player).")
 def get_equipment(
     equipment_id: int,
     request: Request,
@@ -239,7 +242,7 @@ def get_equipment(
     return {"success": True, "data": equipment}
 
 
-@router.put("/{equipment_id}")
+@router.put("/{equipment_id}", description="**Access:** Admin only.")
 def update_equipment(
     equipment_id: int,
     body: EquipmentUpdate,
@@ -280,7 +283,7 @@ def update_equipment(
     return {"success": True, "message": "Equipment updated"}
 
 
-@router.delete("/{equipment_id}")
+@router.delete("/{equipment_id}", description="**Access:** Admin only. Deletion is blocked if the equipment has active (unreturned) issues.")
 def delete_equipment(
     equipment_id: int,
     request: Request,
@@ -301,7 +304,9 @@ def delete_equipment(
     return {"success": True, "message": f"Equipment {equipment_id} deleted"}
 
 
-@router.post("/issue")
+@router.post("/issue", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can issue equipment to any member.\n"
+    "- **Coach** can only issue equipment to members on their teams.")
 def issue_equipment(
     body: IssueCreate,
     request: Request,
@@ -367,7 +372,9 @@ def issue_equipment(
     return {"success": True, "message": "Equipment issued", "data": {"issue_id": issue_id}}
 
 
-@router.put("/issue/{issue_id}/return")
+@router.put("/issue/{issue_id}/return", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can process any return.\n"
+    "- **Coach** can only process returns for members on their teams.")
 def return_equipment(
     issue_id: int,
     return_date: str,

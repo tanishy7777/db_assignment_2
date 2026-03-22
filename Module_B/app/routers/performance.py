@@ -33,7 +33,10 @@ def _validate_record_date(record_date: str) -> None:
 
 
 
-@router.get("/{log_id}")
+@router.get("/{log_id}", description="**Access:** Admin, Coach (restricted), Player (own only).\n\n"
+    "- **Admin** can view any log.\n"
+    "- **Coach** can only view logs for members on their teams.\n"
+    "- **Player** can only view their own logs.")
 def get_performance_log(
     log_id: int,
     request: Request,
@@ -76,7 +79,10 @@ def get_performance_log(
     return {"success": True, "data": log}
 
 
-@router.get("")
+@router.get("", description="**Access:** Admin, Coach (filtered), Player (own only).\n\n"
+    "- **Admin** sees all performance logs.\n"
+    "- **Coach** sees logs only for members on their teams.\n"
+    "- **Player** sees only their own logs.")
 def list_performance_logs(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -130,7 +136,9 @@ def list_performance_logs(
     return {"success": True, "data": rows}
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can create logs for any member.\n"
+    "- **Coach** can only create logs for members on their teams.")
 def create_performance_log(
     body: PerfLogCreate,
     request: Request,
@@ -167,7 +175,9 @@ def create_performance_log(
     return {"success": True, "message": "Performance log created", "data": {"log_id": log_id}}
 
 
-@router.put("/{log_id}")
+@router.put("/{log_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can update any log.\n"
+    "- **Coach** can only update logs for members on their teams.")
 def update_performance_log(
     log_id: int,
     body: PerfLogUpdate,
@@ -206,7 +216,9 @@ def update_performance_log(
     return {"success": True, "message": "Performance log updated"}
 
 
-@router.delete("/{log_id}")
+@router.delete("/{log_id}", description="**Access:** Admin or Coach.\n\n"
+    "- **Admin** can delete any log.\n"
+    "- **Coach** can only delete logs for members on their teams.")
 def delete_performance_log(
     log_id: int,
     request: Request,

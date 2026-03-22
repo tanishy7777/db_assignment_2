@@ -37,7 +37,10 @@ def _validate_medical_payload(diagnosis_date: str, recovery_date: Optional[str],
     return derive_medical_status(requested_status, parsed_diagnosis, parsed_recovery)
 
 
-@router.get("/record/{record_id}")
+@router.get("/record/{record_id}", description="**Access:** Admin, Coach (restricted), or the member themselves.\n\n"
+    "- **Admin** can view any medical record.\n"
+    "- **Coach** can only view records for members on their teams.\n"
+    "- **Player** can only view their own medical records.")
 def get_medical_record(
     record_id: int,
     request: Request,
@@ -70,7 +73,10 @@ def get_medical_record(
     return {"success": True, "data": record}
 
 
-@router.get("/{member_id}")
+@router.get("/{member_id}", description="**Access:** Admin, Coach (restricted), or the member themselves.\n\n"
+    "- **Admin** can view any member's medical records.\n"
+    "- **Coach** can only view records for members on their teams.\n"
+    "- **Player** can only view their own medical records.")
 def get_medical_records(
     member_id: int,
     request: Request,
@@ -103,7 +109,7 @@ def get_medical_records(
     return {"success": True, "data": rows}
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin only.")
 def create_medical_record(
     body: MedicalCreate,
     request: Request,
@@ -144,7 +150,7 @@ def create_medical_record(
             "data": {"record_id": record_id}}
 
 
-@router.put("/{record_id}")
+@router.put("/{record_id}", description="**Access:** Admin only.")
 def update_medical_record(
     record_id: int,
     body: MedicalUpdate,
@@ -192,7 +198,7 @@ def update_medical_record(
     return {"success": True, "message": "Medical record updated"}
 
 
-@router.delete("/{record_id}")
+@router.delete("/{record_id}", description="**Access:** Admin only.")
 def delete_medical_record(
     record_id: int,
     request: Request,

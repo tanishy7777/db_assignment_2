@@ -65,7 +65,7 @@ def _validate_tournament_fields(
     return derive_tournament_status(parsed_start, parsed_end)
 
 
-@router.get("")
+@router.get("", description="**Access:** Any authenticated user (Admin, Coach, Player). Lists all tournaments.")
 def list_tournaments(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -83,7 +83,9 @@ def list_tournaments(
     return {"success": True, "data": rows}
 
 
-@router.get("/{tournament_id}")
+@router.get("/{tournament_id}", description="**Access:** Any authenticated user (Admin, Coach, Player).\n\n"
+    "Returns tournament details, events, and registered teams. "
+    "**Coach** sees only their own teams as available for registration; Admin/Player see all teams.")
 def get_tournament(
     tournament_id: int,
     request: Request,
@@ -148,7 +150,7 @@ def get_tournament(
     }
 
 
-@router.post("")
+@router.post("", description="**Access:** Admin only.")
 def create_tournament(
     body: TournamentCreate,
     request: Request,
@@ -188,7 +190,7 @@ def create_tournament(
             "data": {"tournament_id": tournament_id}}
 
 
-@router.put("/{tournament_id}")
+@router.put("/{tournament_id}", description="**Access:** Admin only.")
 def update_tournament(
     tournament_id: int,
     body: TournamentUpdate,
@@ -228,7 +230,7 @@ def update_tournament(
     return {"success": True, "message": "Tournament updated"}
 
 
-@router.delete("/{tournament_id}")
+@router.delete("/{tournament_id}", description="**Access:** Admin only.")
 def delete_tournament(
     tournament_id: int,
     request: Request,
