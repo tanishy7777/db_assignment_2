@@ -7,7 +7,7 @@ from datetime import date
 import os
 from app.auth.dependencies import get_current_user
 from app.auth.router import LoginRequest, login as api_login
-from app.database import get_auth_db, get_track_db
+from app.database import get_auth_db, get_track_db, get_cross_db
 from app.routers.admin import get_audit_log as api_get_audit_log, verify_audit as api_verify_audit, get_direct_modifications as api_get_direct_modifications
 from app.routers.equipment import (
     EquipmentCreate,
@@ -304,8 +304,7 @@ def member_new_form(
 def member_create(
     request: Request,
     current_user: dict = Depends(get_current_user),
-    track_db=Depends(get_track_db),
-    auth_db=Depends(get_auth_db),
+    cross_db=Depends(get_cross_db),
     member_id: Optional[int] = Form(None),
     name: str = Form(...),
     email: str = Form(...),
@@ -366,7 +365,7 @@ def member_create(
         password=password,
         image=image,
     )
-    res = api_create_member(mem, request, current_user, track_db, auth_db)
+    res = api_create_member(mem, request, current_user, cross_db)
     if not res["success"]:
         form_data = _member_form_defaults(form_data={
             "Name": name,
@@ -573,13 +572,12 @@ def member_delete(
     member_id: int,
     request: Request,
     current_user: dict = Depends(get_current_user),
-    track_db=Depends(get_track_db),
-    auth_db=Depends(get_auth_db),
+    cross_db=Depends(get_cross_db),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/members", status_code=303)
     try:
-        api_delete_member(member_id, request, current_user, track_db, auth_db)
+        api_delete_member(member_id, request, current_user, cross_db)
     except HTTPException:
         return RedirectResponse("/ui/members", status_code=303)
     return RedirectResponse("/ui/members", status_code=303)
@@ -1497,7 +1495,7 @@ def equipment_edit_submit(
                     equipment_name=equipment_name,
                     total_quantity=total_quantity,
                     equipment_condition=equipment_condition,
-                    sport_id=sport_id,
+                    sport_id=None,
                 ),
                 error=str(exc),
             ),
