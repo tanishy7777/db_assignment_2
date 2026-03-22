@@ -33,6 +33,12 @@
               <input type="text" name="name" class="form-control" required
                      value="{{ form_data.get('Name','') or (member.Name if member else '') }}"/>
             </div>
+            <div class="col-md-{% if member %}6{% else %}4{% endif %}">
+              <label class="form-label">Image URL <span class="text-muted">(optional)</span></label>
+              <input type="url" name="image" class="form-control" pattern="https?://.*"
+                     placeholder="https://example.com/photo.jpg"
+                     value="{{ form_data.get('Image','') or (member.Image if member else '') }}"/>
+            </div>
             <div class="col-md-4">
               <label class="form-label">Email</label>
               <input type="email" name="email" class="form-control" required

@@ -54,10 +54,13 @@
           <div class="mt-3">
             <label class="form-label">Team Members</label>
             <div id="members-container">
-              {% for member_id in form_data.get('member_ids', ['']) %}
+              {% set members_list = form_data.get('members', [{'member_id': '', 'position': ''}]) %}
+              {% for m in members_list %}
               <div class="input-group mb-2">
                 <input type="number" name="member_ids" class="form-control member-id-input" placeholder="Member ID"
-                       value="{{ member_id }}"/>
+                       value="{{ m.member_id if m.member_id is defined else m }}"/>
+                <input type="text" name="member_positions" class="form-control position-input" placeholder="Position (e.g. Forward)"
+                       value="{{ m.position if m.position is defined else '' }}" style="max-width:200px;"/>
                 <button type="button" class="btn btn-outline-danger remove-member">Remove</button>
               </div>
               {% endfor %}
@@ -88,6 +91,7 @@ document.getElementById('add-member').addEventListener('click', function() {
   newInput.className = 'input-group mb-2';
   newInput.innerHTML = `
     <input type="number" name="member_ids" class="form-control member-id-input" placeholder="Member ID"/>
+    <input type="text" name="member_positions" class="form-control position-input" placeholder="Position (e.g. Forward)" style="max-width:200px;"/>
     <button type="button" class="btn btn-outline-danger remove-member">Remove</button>
   `;
   container.appendChild(newInput);
@@ -114,10 +118,13 @@ document.addEventListener('click', function(e) {
 });
 
 teamForm.addEventListener('submit', function() {
-  const inputs = membersContainer.querySelectorAll('.member-id-input');
-  inputs.forEach((input) => {
-    if (!input.value.trim()) {
-      input.disabled = true;
+  const rows = membersContainer.querySelectorAll('.input-group');
+  rows.forEach((row) => {
+    const idInput = row.querySelector('.member-id-input');
+    const posInput = row.querySelector('.position-input');
+    if (!idInput.value.trim()) {
+      idInput.disabled = true;
+      posInput.disabled = true;
     }
   });
 });

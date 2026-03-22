@@ -25,10 +25,14 @@
     {% set profile_card %}
     <div class="card">
       <div class="card-body text-center">
+        {% if member.Image %}
+        <img src="{{ member.Image }}" alt="{{ member.Name }}" class="avatar avatar-xl mb-3" style="object-fit:cover;"/>
+        {% else %}
         <span class="avatar avatar-xl mb-3"
               style="background-color:#206bc4;color:white;font-size:2rem;font-weight:bold;">
           {{ member.Name[0] }}
         </span>
+        {% endif %}
         <h3 class="mb-1">{{ member.Name }}</h3>
         <div class="text-muted mb-2">{{ member.Email }}</div>
         <span class="badge bg-{% if member.Role == 'Admin' %}red{% elif member.Role == 'Coach' %}orange{% else %}blue{% endif %} mb-3">

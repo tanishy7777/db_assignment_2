@@ -73,6 +73,7 @@ from app.routers.registration import (
 
 from app.routers.teams import (
     TeamCreate,
+    TeamMemberEntry,
     TeamUpdate,
     create_team as api_create_team,
     delete_team as api_delete_team,
@@ -166,17 +167,21 @@ def _parse_optional_int(value, label: str) -> Optional[int]:
         raise ValueError(f"{label} must be a valid integer.") from exc
 
 
-def _parse_member_ids(form) -> list[int]:
-    member_ids = []
-    for raw_value in form.getlist("member_ids"):
-        value = raw_value.strip()
+def _parse_members(form) -> list[TeamMemberEntry]:
+    raw_ids = form.getlist("member_ids")
+    raw_positions = form.getlist("member_positions")
+    members = []
+    for i, raw_id in enumerate(raw_ids):
+        value = raw_id.strip()
         if not value:
             continue
         try:
-            member_ids.append(int(value))
+            member_id = int(value)
         except ValueError as exc:
             raise ValueError("Each member ID must be a valid integer.") from exc
-    return member_ids
+        position = raw_positions[i].strip() if i < len(raw_positions) and raw_positions[i].strip() else None
+        members.append(TeamMemberEntry(member_id=member_id, position=position))
+    return members
 
 
 def _member_form_defaults(member=None, form_data=None) -> dict:
@@ -313,11 +318,13 @@ def member_create(
     join_date: str = Form(...),
     username: str = Form(...),
     password: str = Form(...),
+    image: Optional[str] = Form(None),
 ):
     if current_user["role"] != "Admin":
         return RedirectResponse("/ui/members", status_code=303)
     if not isinstance(member_id, int):
         member_id = None
+    image = image.strip() if isinstance(image, str) and image.strip() else None
     if not isinstance(contact_country_code, str):
         contact_country_code = None
     if not isinstance(contact_number_local, str):
@@ -338,6 +345,7 @@ def member_create(
             "Role": role,
             "JoinDate": join_date,
             "Username": username,
+            "Image": image or "",
             "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
             "ContactNumberLocal": contact_number_local or contact_number or "",
         })
@@ -356,6 +364,7 @@ def member_create(
         join_date=join_date,
         username=username,
         password=password,
+        image=image,
     )
     res = api_create_member(mem, request, current_user, track_db, auth_db)
     if not res["success"]:
@@ -367,6 +376,7 @@ def member_create(
             "Role": role,
             "JoinDate": join_date,
             "Username": username,
+            "Image": image or "",
             "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
             "ContactNumberLocal": contact_number_local or contact_number or "",
         })
@@ -460,6 +470,7 @@ def member_edit_submit(
     contact_country_code: Optional[str] = Form(None),
     contact_number: Optional[str] = Form(None),
     contact_number_local: Optional[str] = Form(None),
+    image: Optional[str] = Form(None),
 ):
     if not isinstance(contact_country_code, str):
         contact_country_code = None
@@ -467,6 +478,7 @@ def member_edit_submit(
         contact_number_local = None
     if not isinstance(contact_number, str):
         contact_number = None
+    image = image.strip() if isinstance(image, str) and image.strip() else None
     try:
         if contact_number_local is not None or contact_country_code is not None:
             contact_value = combine_contact_number(contact_country_code, contact_number_local or contact_number or "")
@@ -479,6 +491,7 @@ def member_edit_submit(
             "Name": name,
             "Email": email,
             "Age": age,
+            "Image": image or "",
             "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
             "ContactNumberLocal": contact_number_local or contact_number or "",
         })
@@ -502,6 +515,7 @@ def member_edit_submit(
         email=email,
         age=age,
         contact_number=contact_value,
+        image=image,
     )
     try:
         api_update_member(member_id, body, request, current_user, track_db, auth_db)
@@ -514,6 +528,7 @@ def member_edit_submit(
             "Name": name,
             "Email": email,
             "Age": age,
+            "Image": image or "",
             "ContactCountryCode": contact_country_code or COMMON_COUNTRY_CODES[0],
             "ContactNumberLocal": contact_number_local or contact_number or "",
         })
@@ -579,7 +594,7 @@ def team_new_form(
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
     return templates.TemplateResponse(request, "teams/form.html",
-                                      _ctx(request, current_user, form_data={"member_ids": [""]}, active="teams", error=None, sports=sports))
+                                      _ctx(request, current_user, form_data={"members": [{"member_id": "", "position": ""}]}, active="teams", error=None, sports=sports))
 
 
 @router.post("/teams/new")
@@ -594,19 +609,23 @@ async def team_create(
     form = await request.form()
     team_name = (form.get("team_name") or "").strip()
     formed_date = (form.get("formed_date") or "").strip()
+    raw_ids = form.getlist("member_ids") or [""]
+    raw_positions = form.getlist("member_positions") or [""]
+    raw_members = [{"member_id": raw_ids[i], "position": raw_positions[i] if i < len(raw_positions) else ""}
+                   for i in range(len(raw_ids))]
     raw_form_data = {
         "team_name": team_name,
         "sport_id": form.get("sport_id", ""),
         "coach_id": form.get("coach_id", ""),
         "captain_id": form.get("captain_id", ""),
-        "member_ids": form.getlist("member_ids") or [""],
+        "members": raw_members,
         "formed_date": formed_date,
     }
     try:
         sport_id = _parse_required_int(form.get("sport_id"), "Sport ID")
         coach_id = _parse_optional_int(form.get("coach_id"), "Coach ID")
         captain_id = _parse_optional_int(form.get("captain_id"), "Captain ID")
-        member_ids = _parse_member_ids(form)
+        members = _parse_members(form)
     except ValueError as exc:
         track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
         sports = track_db.fetchall()
@@ -620,7 +639,7 @@ async def team_create(
         sport_id=sport_id,
         coach_id=coach_id,
         captain_id=captain_id,
-        member_ids=member_ids,
+        members=members,
         formed_date=formed_date,
     )
     try:
@@ -654,12 +673,13 @@ def team_edit_form(
         team["FormedDate"] = str(team["FormedDate"])
     track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
     sports = track_db.fetchall()
+    roster = res["data"]["roster"]
     form_data = {
         "team_name": team["TeamName"],
         "sport_id": team["SportID"],
         "coach_id": team["CoachID"],
         "captain_id": team["CaptainID"],
-        "member_ids": [member["MemberID"] for member in res["data"]["roster"]] or [""],
+        "members": [{"member_id": m["MemberID"], "position": m.get("Position") or ""} for m in roster] or [{"member_id": "", "position": ""}],
         "formed_date": team["FormedDate"]
     }
     return templates.TemplateResponse(request, "teams/form.html",
@@ -679,19 +699,23 @@ async def team_edit_submit(
     form = await request.form()
     team_name = (form.get("team_name") or "").strip()
     formed_date = (form.get("formed_date") or "").strip()
+    raw_ids = form.getlist("member_ids") or [""]
+    raw_positions = form.getlist("member_positions") or [""]
+    raw_members = [{"member_id": raw_ids[i], "position": raw_positions[i] if i < len(raw_positions) else ""}
+                   for i in range(len(raw_ids))]
     raw_form_data = {
         "team_name": team_name,
         "sport_id": form.get("sport_id", ""),
         "coach_id": form.get("coach_id", ""),
         "captain_id": form.get("captain_id", ""),
-        "member_ids": form.getlist("member_ids") or [""],
+        "members": raw_members,
         "formed_date": formed_date,
     }
     try:
         sport_id = _parse_required_int(form.get("sport_id"), "Sport ID")
         coach_id = _parse_optional_int(form.get("coach_id"), "Coach ID")
         captain_id = _parse_optional_int(form.get("captain_id"), "Captain ID")
-        member_ids = _parse_member_ids(form)
+        members = _parse_members(form)
     except ValueError as exc:
         track_db.execute("SELECT SportID, SportName FROM Sport ORDER BY SportName")
         sports = track_db.fetchall()
@@ -713,7 +737,7 @@ async def team_edit_submit(
         sport_id=sport_id,
         coach_id=coach_id,
         captain_id=captain_id,
-        member_ids=member_ids,
+        members=members,
         formed_date=formed_date,
     )
     try:

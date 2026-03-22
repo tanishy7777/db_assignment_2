@@ -10,6 +10,11 @@ from app.services.validation import humanize_db_error, parse_iso_date
 router = APIRouter()
 
 
+class TeamMemberEntry(BaseModel):
+    member_id: int
+    position: Optional[str] = None
+
+
 class TeamCreate(BaseModel):
     team_id:    Optional[int] = None
     team_name:  str
@@ -17,7 +22,7 @@ class TeamCreate(BaseModel):
     formed_date: str
     coach_id:   Optional[int] = None
     captain_id: Optional[int] = None
-    member_ids: list[int] = Field(default_factory=list)
+    members: list[TeamMemberEntry] = Field(default_factory=list)
 
 
 class TeamUpdate(BaseModel):
@@ -26,7 +31,7 @@ class TeamUpdate(BaseModel):
     formed_date: Optional[str] = None
     coach_id:   Optional[int] = None
     captain_id: Optional[int] = None
-    member_ids: Optional[list[int]] = None
+    members: Optional[list[TeamMemberEntry]] = None
 
 
 def _get_team_or_404(track_db, team_id: int) -> dict:
@@ -53,17 +58,21 @@ def _validate_team_fields(track_db, sport_id=None, coach_id=None, formed_date=No
             raise HTTPException(status_code=400, detail="Selected sport is not valid.")
 
 
-def _normalize_member_ids(member_ids: Optional[list[int]]) -> list[int]:
-    if not member_ids:
+def _normalize_members(members: Optional[list[TeamMemberEntry]]) -> list[TeamMemberEntry]:
+    if not members:
         return []
     normalized = []
     seen = set()
-    for member_id in member_ids:
-        if member_id in seen:
+    for entry in members:
+        if entry.member_id in seen:
             raise HTTPException(status_code=400, detail="Duplicate member IDs are not allowed.")
-        seen.add(member_id)
-        normalized.append(member_id)
+        seen.add(entry.member_id)
+        normalized.append(entry)
     return normalized
+
+
+def _extract_member_ids(members: list[TeamMemberEntry]) -> list[int]:
+    return [m.member_id for m in members]
 
 
 def _validate_team_members(track_db, member_ids: list[int], captain_id: Optional[int]):
@@ -91,25 +100,27 @@ def _validate_team_members(track_db, member_ids: list[int], captain_id: Optional
         )
 
 
-def _sync_team_members(track_db, team_id: int, member_ids: list[int], captain_id: Optional[int], join_date: str):
+def _sync_team_members(track_db, team_id: int, members: list[TeamMemberEntry], captain_id: Optional[int], join_date: str):
     track_db.execute(
         "SELECT MemberID, JoinDate, Position FROM TeamMember WHERE TeamID = %s",
         (team_id,),
     )
     existing_rows = {row["MemberID"]: row for row in track_db.fetchall()}
-    members_to_remove = [member_id for member_id in existing_rows if member_id not in member_ids]
-    for member_id in members_to_remove:
+    member_ids = _extract_member_ids(members)
+    members_to_remove = [mid for mid in existing_rows if mid not in member_ids]
+    for mid in members_to_remove:
         track_db.execute(
             "DELETE FROM TeamMember WHERE TeamID = %s AND MemberID = %s",
-            (team_id, member_id),
+            (team_id, mid),
         )
-    for member_id in member_ids:
-        is_captain = member_id == captain_id
-        existing_row = existing_rows.get(member_id)
+    for entry in members:
+        is_captain = entry.member_id == captain_id
+        position = entry.position.strip() if entry.position else None
+        existing_row = existing_rows.get(entry.member_id)
         if existing_row:
             track_db.execute(
-                "UPDATE TeamMember SET IsCaptain = %s WHERE TeamID = %s AND MemberID = %s",
-                (is_captain, team_id, member_id),
+                "UPDATE TeamMember SET IsCaptain = %s, Position = %s WHERE TeamID = %s AND MemberID = %s",
+                (is_captain, position, team_id, entry.member_id),
             )
             continue
         track_db.execute(
@@ -117,7 +128,7 @@ def _sync_team_members(track_db, team_id: int, member_ids: list[int], captain_id
             INSERT INTO TeamMember (TeamID, MemberID, JoinDate, Position, IsCaptain)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (team_id, member_id, join_date, None, is_captain),
+            (team_id, entry.member_id, join_date, position, is_captain),
         )
 
 
@@ -215,7 +226,8 @@ def create_team(
         elif body.coach_id != current_user["member_id"]:
             raise HTTPException(status_code=403, detail="Coach can only create teams assigned to themselves.")
     _validate_team_fields(track_db, sport_id=body.sport_id, coach_id=body.coach_id, formed_date=body.formed_date)
-    member_ids = _normalize_member_ids(body.member_ids)
+    members = _normalize_members(body.members)
+    member_ids = _extract_member_ids(members)
     _validate_team_members(track_db, member_ids, body.captain_id)
     team_id = body.team_id
     if team_id is None:
@@ -228,7 +240,7 @@ def create_team(
             (team_id, body.team_name, body.coach_id, body.captain_id,
              body.sport_id, body.formed_date),
         )
-        _sync_team_members(track_db, team_id, member_ids, body.captain_id, body.formed_date)
+        _sync_team_members(track_db, team_id, members, body.captain_id, body.formed_date)
     except HTTPException:
         raise
     except Exception as e:
@@ -263,9 +275,12 @@ def update_team(
         coach_id=fields.get("coach_id"),
         formed_date=fields.get("formed_date"),
     )
-    if "member_ids" in fields:
-        fields["member_ids"] = _normalize_member_ids(fields["member_ids"])
-    member_ids = fields.get("member_ids")
+    if "members" in fields:
+        members = _normalize_members([TeamMemberEntry(**m) if isinstance(m, dict) else m for m in fields["members"]])
+        member_ids = _extract_member_ids(members)
+    else:
+        members = None
+        member_ids = None
     captain_id = fields.get("captain_id", team["CaptainID"])
     if member_ids is not None:
         _validate_team_members(track_db, member_ids, captain_id)
@@ -287,11 +302,11 @@ def update_team(
             f"UPDATE Team SET {set_clause} WHERE TeamID = %s",
             list(db_fields.values()) + [team_id],
         )
-    if member_ids is not None:
+    if members is not None:
         _sync_team_members(
             track_db,
             team_id,
-            member_ids,
+            members,
             captain_id,
             fields.get("formed_date") or str(team["FormedDate"]),
         )
