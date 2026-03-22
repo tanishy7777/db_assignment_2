@@ -1931,8 +1931,7 @@ def test_members_router_branch_coverage(monkeypatch, admin_user, coach_user, pla
         ),
         make_request("/api/members", method="POST"),
         current_user=admin_user,
-        track_db=ScriptedDB(),
-        auth_db=ScriptedDB(),
+        cross_db=ScriptedDB(),
     )
     assert create_result["success"] is False
     with pytest.raises(HTTPException) as exc_info:

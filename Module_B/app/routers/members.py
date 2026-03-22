@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 from app.auth.dependencies import get_current_user, require_admin
-from app.database import get_auth_db, get_track_db
+from app.database import get_auth_db, get_track_db, get_cross_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
 from app.services.validation import (
@@ -243,9 +243,9 @@ def create_member(
     body: MemberCreate,
     request: Request,
     current_user: dict = Depends(require_admin),
-    track_db=Depends(get_track_db),
-    auth_db=Depends(get_auth_db),
+    cross_db=Depends(get_cross_db),
 ):
+    """Uses a single cross-DB connection for atomicity across olympia_track and olympia_auth."""
     import bcrypt
     ip = request.client.host if request.client else "unknown"
     _ensure_admin(current_user)
@@ -260,12 +260,12 @@ def create_member(
     member_id = body.member_id
     try:
         member_id = insert_with_generated_id(
-            track_db,
+            cross_db,
             requested_id=member_id,
-            next_id_sql="SELECT COALESCE(MAX(MemberID), 0) + 1 AS nid FROM Member",
-            insert_fn=lambda generated_member_id: track_db.execute(
+            next_id_sql="SELECT COALESCE(MAX(MemberID), 0) + 1 AS nid FROM olympia_track.Member",
+            insert_fn=lambda generated_member_id: cross_db.execute(
                 """
-                INSERT INTO Member
+                INSERT INTO olympia_track.Member
                     (MemberID, Name, Image, Age, Email, ContactNumber, Gender, Role, JoinDate)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
@@ -284,25 +284,24 @@ def create_member(
         )
     except Exception as e:
         write_audit_log(
-            auth_db, current_user["user_id"], current_user["username"],
+            cross_db, current_user["user_id"], current_user["username"],
             "INSERT", "Member", str(member_id), "FAILURE", {"error": str(e)}, ip,
         )
         return {"success": False, "message": humanize_db_error(e), "data": body}
     pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
     try:
-        auth_db.execute(
+        cross_db.execute(
             "INSERT INTO users (username, password_hash, role, member_id) VALUES (%s, %s, %s, %s)",
             (body.username, pw_hash, body.role, member_id),
         )
     except Exception as e:
-        track_db.execute("DELETE FROM Member WHERE MemberID = %s", (member_id,))
         write_audit_log(
-            auth_db, current_user["user_id"], current_user["username"],
+            cross_db, current_user["user_id"], current_user["username"],
             "INSERT", "users", None, "FAILURE", {"error": str(e)}, ip,
         )
         return {"success": False, "message": humanize_db_error(e), "data": body}
     write_audit_log(
-        auth_db, current_user["user_id"], current_user["username"],
+        cross_db, current_user["user_id"], current_user["username"],
         "INSERT", "Member", str(member_id), "SUCCESS",
         {"name": member_name, "role": body.role}, ip,
     )
@@ -368,16 +367,18 @@ def delete_member(
     member_id: int,
     request: Request,
     current_user: dict = Depends(require_admin),
-    track_db=Depends(get_track_db),
-    auth_db=Depends(get_auth_db),
+    cross_db=Depends(get_cross_db),
 ):
+    """Uses a single cross-DB connection for atomicity across olympia_track and olympia_auth."""
     ip = request.client.host if request.client else "unknown"
     _ensure_admin(current_user)
-    _get_member_or_404(track_db, member_id)
-    auth_db.execute("DELETE FROM users WHERE member_id = %s", (member_id,))
-    track_db.execute("DELETE FROM Member WHERE MemberID = %s", (member_id,))
+    cross_db.execute("SELECT * FROM olympia_track.Member WHERE MemberID = %s", (member_id,))
+    if not cross_db.fetchone():
+        raise HTTPException(status_code=404, detail="Member not found")
+    cross_db.execute("DELETE FROM users WHERE member_id = %s", (member_id,))
+    cross_db.execute("DELETE FROM olympia_track.Member WHERE MemberID = %s", (member_id,))
     write_audit_log(
-        auth_db, current_user["user_id"], current_user["username"],
+        cross_db, current_user["user_id"], current_user["username"],
         "DELETE", "Member", str(member_id), "SUCCESS", None, ip,
     )
     return {"success": True, "message": f"Member {member_id} deleted"}

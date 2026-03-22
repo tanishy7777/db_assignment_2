@@ -124,8 +124,7 @@ def test_members_router_endpoints(admin_user, monkeypatch):
         ),
         make_request("/api/members", method="POST"),
         current_user=admin_user,
-        track_db=ScriptedDB(),
-        auth_db=ScriptedDB(),
+        cross_db=ScriptedDB(),
     )
     assert create_result["success"] is True
     update_result = members.update_member(
@@ -141,8 +140,7 @@ def test_members_router_endpoints(admin_user, monkeypatch):
         1,
         make_request("/api/members/1", method="DELETE"),
         current_user=admin_user,
-        track_db=ScriptedDB(fetchone_values=[{"MemberID": 1, "Role": "Player"}]),
-        auth_db=ScriptedDB(),
+        cross_db=ScriptedDB(fetchone_values=[{"MemberID": 1, "Role": "Player"}]),
     )
     assert delete_result["success"] is True
     with pytest.raises(HTTPException) as exc_info:
@@ -667,9 +665,10 @@ def test_registration_and_admin_router_endpoints(admin_user, monkeypatch):
 def test_member_create_auto_generates_id_and_rolls_back_auth_failure(admin_user, monkeypatch):
     from app.routers import members
     monkeypatch.setattr(members, "write_audit_log", lambda *args, **kwargs: None)
-    track_db = ScriptedDB(fetchone_values=[{"nid": 42}])
-    auth_db = ScriptedDB(
-        execute_side_effects=[Exception("Duplicate entry 'runner42' for key 'username'")]
+    # Single cross_db cursor: side effects are [SELECT nid (ok), INSERT Member (ok), INSERT users (fail)]
+    cross_db = ScriptedDB(
+        fetchone_values=[{"nid": 42}],
+        execute_side_effects=[None, None, Exception("Duplicate entry 'runner42' for key 'username'")],
     )
     result = members.create_member(
         members.MemberCreate(
@@ -685,12 +684,11 @@ def test_member_create_auto_generates_id_and_rolls_back_auth_failure(admin_user,
         ),
         make_request("/api/members", method="POST"),
         current_user=admin_user,
-        track_db=track_db,
-        auth_db=auth_db,
+        cross_db=cross_db,
     )
     assert result["success"] is False
-    assert any("SELECT COALESCE(MAX(MemberID), 0) + 1 AS nid FROM Member" in query for query, _ in track_db.executed)
-    assert any("DELETE FROM Member WHERE MemberID = %s" in query for query, _ in track_db.executed)
+    assert any("SELECT COALESCE(MAX(MemberID), 0) + 1 AS nid FROM olympia_track.Member" in query for query, _ in cross_db.executed)
+    # No manual DELETE — rollback is handled atomically by the single connection
 
 
 def test_team_detail_returns_linked_events(admin_user, monkeypatch):

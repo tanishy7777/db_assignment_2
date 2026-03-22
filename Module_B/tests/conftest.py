@@ -142,10 +142,10 @@ def player_user():
 @pytest.fixture
 def client_factory():
     from app.auth.dependencies import get_current_user
-    from app.database import get_auth_db, get_track_db
+    from app.database import get_auth_db, get_track_db, get_cross_db
     from app.main import app
     @contextmanager
-    def _factory(*, user=None, track_db=None, auth_db=None):
+    def _factory(*, user=None, track_db=None, auth_db=None, cross_db=None):
         app.dependency_overrides.clear()
         if user is not None:
             app.dependency_overrides[get_current_user] = lambda: user
@@ -153,6 +153,10 @@ def client_factory():
             app.dependency_overrides[get_track_db] = lambda: track_db
         if auth_db is not None:
             app.dependency_overrides[get_auth_db] = lambda: auth_db
+        if cross_db is not None:
+            app.dependency_overrides[get_cross_db] = lambda: cross_db
+        elif auth_db is not None:
+            app.dependency_overrides[get_cross_db] = lambda: auth_db
         with ASGITestClient(app) as client:
             yield client
         app.dependency_overrides.clear()

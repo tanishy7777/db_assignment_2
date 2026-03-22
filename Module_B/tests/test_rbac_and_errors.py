@@ -153,8 +153,7 @@ def test_get_medical_record_player_accessing_other_member_is_403(player_user, mo
 def test_create_member_age_zero_returns_failure(admin_user, monkeypatch):
     from app.routers import members
     monkeypatch.setattr(members, "write_audit_log", lambda *a, **kw: None)
-    track_db = ScriptedDB()
-    auth_db = ScriptedDB()
+    cross_db = ScriptedDB()
     result = members.create_member(
         members.MemberCreate(
             member_id=99, name="X", age=0, email="x@e.com",
@@ -163,13 +162,11 @@ def test_create_member_age_zero_returns_failure(admin_user, monkeypatch):
         ),
         make_request("/api/members", method="POST"),
         current_user=admin_user,
-        track_db=track_db,
-        auth_db=auth_db,
+        cross_db=cross_db,
     )
     assert result["success"] is False
     assert "age" in result["message"].lower()
-    assert track_db.executed == []
-    assert auth_db.executed == []
+    assert cross_db.executed == []
 
 
 def test_create_member_duplicate_member_id_returns_failure(admin_user, monkeypatch):
@@ -183,10 +180,9 @@ def test_create_member_duplicate_member_id_returns_failure(admin_user, monkeypat
         ),
         make_request("/api/members", method="POST"),
         current_user=admin_user,
-        track_db=ScriptedDB(
+        cross_db=ScriptedDB(
             execute_side_effects=[Exception("Duplicate entry '1' for key 'PRIMARY'")]
         ),
-        auth_db=ScriptedDB(),
     )
     assert result["success"] is False
     assert "Duplicate" in result["message"]
@@ -203,9 +199,9 @@ def test_create_member_duplicate_username_returns_failure(admin_user, monkeypatc
         ),
         make_request("/api/members", method="POST"),
         current_user=admin_user,
-        track_db=ScriptedDB(),
-        auth_db=ScriptedDB(
-            execute_side_effects=[Exception("Duplicate entry 'existing_user' for key 'username'")]
+        cross_db=ScriptedDB(
+            # Side effects: INSERT Member (ok), INSERT users (fail)
+            execute_side_effects=[None, Exception("Duplicate entry 'existing_user' for key 'username'")]
         ),
     )
     assert result["success"] is False
@@ -224,8 +220,7 @@ def test_create_member_non_admin_is_403(player_user, monkeypatch):
             ),
             make_request("/api/members", method="POST"),
             current_user=player_user,
-            track_db=ScriptedDB(),
-            auth_db=ScriptedDB(),
+            cross_db=ScriptedDB(),
         )
     assert exc_info.value.status_code == 403
 
@@ -238,8 +233,7 @@ def test_delete_member_non_admin_is_403(player_user, monkeypatch):
             7,
             make_request("/api/members/7", method="DELETE"),
             current_user=player_user,
-            track_db=ScriptedDB(),
-            auth_db=ScriptedDB(),
+            cross_db=ScriptedDB(),
         )
     assert exc_info.value.status_code == 403
 
