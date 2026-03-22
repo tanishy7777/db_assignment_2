@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from app.auth.dependencies import get_current_user, require_admin, require_admin_or_coach
+from app.auth.dependencies import require_admin_or_coach
 from app.database import get_auth_db, get_track_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
@@ -52,11 +52,17 @@ def unregister_team_from_tournament(
     tournament_id: int,
     team_id: int,
     request: Request,
-    current_user: dict = Depends(require_admin),
+    current_user: dict = Depends(require_admin_or_coach),
     track_db=Depends(get_track_db),
     auth_db=Depends(get_auth_db),
 ):
     ip = request.client.host if request.client else "unknown"
+    track_db.execute("SELECT TeamID, CoachID FROM Team WHERE TeamID=%s", (team_id,))
+    team = track_db.fetchone()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found.")
+    if current_user["role"] == "Coach" and team["CoachID"] != current_user["member_id"]:
+        raise HTTPException(status_code=403, detail="Coach can only unregister their own teams.")
     track_db.execute(
         "SELECT RegID FROM TournamentRegistration WHERE TournamentID=%s AND TeamID=%s",
         (tournament_id, team_id),

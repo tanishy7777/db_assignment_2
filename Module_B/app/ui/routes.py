@@ -398,7 +398,9 @@ def member_portfolio(
 ):
     try:
         res = api_get_member_portfolio(member_id, request, current_user, track_db, auth_db)
-    except HTTPException:
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            return _flash_redirect("/ui/members", error="You are not authorized to view that member's profile.")
         return RedirectResponse("/ui/members", status_code=303)
     if (res["role"] == "Player"):
         portfolio = res["data"]

@@ -54,10 +54,11 @@ def _can_view_member(current_user: dict, member_role: str, member_id: int) -> bo
     if current_user["role"] == "Admin":
         return True
     elif current_user["role"] == "Coach":
-        if member_role == "Player" or member_role == "Coach":
+        if member_role == "Player":
             return True
-        else:
-            return False
+        if member_role == "Coach":
+            return current_user["member_id"] == member_id
+        return False
     return current_user["member_id"] == member_id
 
 

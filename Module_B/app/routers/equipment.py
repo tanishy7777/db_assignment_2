@@ -5,7 +5,7 @@ from app.auth.dependencies import get_current_user, require_admin, require_admin
 from app.database import get_auth_db, get_track_db
 from app.services.audit import write_audit_log
 from app.services.id_generation import insert_with_generated_id
-from app.services.validation import humanize_db_error, parse_iso_date, validate_date_order
+from app.services.validation import humanize_db_error, parse_iso_date, validate_date_order, validate_not_future
 
 router = APIRouter()
 
@@ -352,6 +352,15 @@ def issue_equipment(
             detail=f"Cannot issue {body.quantity} item(s). Only {available} available.",
         )
     try:
+        parsed_issue = parse_iso_date(body.issue_date, "Issue date")
+        validate_not_future(parsed_issue, "Issue date")
+        if body.return_date:
+            parsed_return = parse_iso_date(body.return_date, "Return date")
+            validate_not_future(parsed_return, "Return date")
+            validate_date_order(parsed_issue, parsed_return, "Issue date", "Return date")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
         issue_id = insert_with_generated_id(
             track_db,
             requested_id=issue_id,
@@ -396,6 +405,7 @@ def return_equipment(
         raise HTTPException(status_code=400, detail="This equipment issue has already been returned.")
     try:
         parsed_return_date = parse_iso_date(return_date, "Return date")
+        validate_not_future(parsed_return_date, "Return date")
         if issue.get("IssueDate") is not None:
             parsed_issue_date = parse_iso_date(str(issue["IssueDate"]), "Issue date")
             validate_date_order(parsed_issue_date, parsed_return_date, "Issue date", "Return date")
